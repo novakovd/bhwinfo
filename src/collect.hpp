@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 novakovd (danilnovakov@gmail.com)
+ * Copyright 2023 novakovd (danilnovakov@gmail.com)
  * Copyright 2021 Aristocratos (jakob@qvantnet.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,6 +37,11 @@ namespace fs = std::filesystem;
 namespace rh = robin_hood;
 
 namespace cpu {
+    struct GetCpuFrequencyResult {
+        double value{}; // defaults to 0
+        string units;
+    };
+
     struct Sensor {
         fs::path path;
         string label;
@@ -79,13 +84,12 @@ namespace cpu {
     bool got_sensors;
     int width = 20;
 
-    static string get_cpu_hz() {
+    static GetCpuFrequencyResult get_cpu_frequency() {
         static int failed{}; // defaults to 0
+        GetCpuFrequencyResult result;
 
         if (failed > 4)
-            return ""s;
-
-        string cpuhz;
+            return result;
 
         try {
             double hz{}; // defaults to 0.0
@@ -121,25 +125,27 @@ namespace cpu {
                 throw std::runtime_error("Failed to read /sys/devices/system/cpu/cpufreq/policy and /proc/cpuinfo.");
 
             if (hz >= 1000) {
-                if (hz >= 10000) cpuhz = std::to_string((int)round(hz / 1000));
-                else cpuhz = std::to_string(round(hz / 100) / 10.0).substr(0, 3);
-                cpuhz += " GHz";
-            }
-            else if (hz > 0)
-                cpuhz = std::to_string((int)round(hz)) + " MHz";
+                if (hz >= 10000) result.value = round(hz / 1000);
+                else result.value = round(hz / 100) / 10.0;
 
+                result.units = "GHz";
+            }
+            else if (hz > 0) {
+                result.value = round(hz);
+                result.units = "MHz";
+            }
         }
         catch (const std::exception& e) {
             if (++failed < 5)
-                return ""s;
+                return result;
             else {
-                ut::logger::warning("get_cpuHZ() : " + string{e.what()});
+                ut::logger::warning("get_cpu_hz() : " + string{e.what()});
 
-                return ""s;
+                return result;
             }
         }
 
-        return cpuhz;
+        return result;
     }
 
     string get_cpu_mame() {
@@ -232,12 +238,8 @@ namespace cpu {
 
         try {
             //? Setup up paths to search for sensors
-            if (fs::exists(fs::path("/sys/class/hwmon"))
-                and access("/sys/class/hwmon", R_OK) != -1
-                    ) {
-                for (const auto& dir :
-                        fs::directory_iterator(fs::path("/sys/class/hwmon"))
-                        ) {
+            if (fs::exists(fs::path("/sys/class/hwmon")) and access("/sys/class/hwmon", R_OK) != -1) {
+                for (const auto& dir :fs::directory_iterator(fs::path("/sys/class/hwmon"))) {
                     fs::path add_path = fs::canonical(dir.path());
 
                     if (ut::vec::contains(search_paths, add_path)
@@ -269,20 +271,16 @@ namespace cpu {
             }
 
             if (not got_core_temp and fs::exists(fs::path("/sys/devices/platform/coretemp.0/hwmon"))) {
-                for (auto& d :
-                        fs::directory_iterator(fs::path("/sys/devices/platform/coretemp.0/hwmon"))
-                        ) {
+                for (auto& d :fs::directory_iterator(fs::path("/sys/devices/platform/coretemp.0/hwmon"))) {
                     fs::path add_path = fs::canonical(d.path());
 
-                    for (const auto & file : fs::directory_iterator(add_path)) {
+                    for (const auto& file : fs::directory_iterator(add_path)) {
                         string filename = file.path().filename();
 
-                        if (filename.starts_with("temp") and
-                            filename.ends_with("_input") and not
-                                    ut::vec::contains(search_paths, add_path)
-                                ) {
+                        if (filename.starts_with("temp") and filename.ends_with("_input") and not ut::vec::contains(search_paths, add_path)) {
                             search_paths.push_back(add_path);
                             got_core_temp = true;
+
                             break;
                         }
                     }
@@ -324,6 +322,7 @@ namespace cpu {
                         }
                         else if (label.starts_with("Core") or label.starts_with("Tccd")) {
                             got_core_temp = true;
+
                             if (not ut::vec::contains(core_sensors, sensor_name))
                                 core_sensors.push_back(sensor_name);
                         }
