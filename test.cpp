@@ -24,7 +24,7 @@ using std::endl;
 using std::thread;
 
 void setInterval(auto function, int interval) {
-    thread t([=]() {
+    thread t([&]() {
         for(;;) {
             std::this_thread::sleep_for(std::chrono::milliseconds(interval));
             function();
@@ -53,6 +53,23 @@ int main() {
 
         cout << "================= CPU temp =================" << endl;
         cout << cpu.temp.at(0).back() << "°C" << endl;
+
+        cout << "================= CPU core count =================" << endl;
+        cout << shared::core_count << endl;
+
+        cout << "================= CPU load =================" << endl;
+        cout << cpu.cpu_percent.at("total").back() << "%" << endl;
+
+        cout << "================= CPU cores load =================" << endl;
+        int n = 0;
+
+        while (n < shared::core_count) {
+            cout << "C" << n << ": " << cpu.core_percent.at(n).back();
+            cout << "  C" << n + 1 << ": " << cpu.core_percent.at(n + 1).back() << endl;
+
+            n = n + 2;
+        }
+
     }, 1000);
 
     for(;;); // keep main thread active;
