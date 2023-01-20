@@ -17,7 +17,7 @@
 #include <iostream>
 #include "thread"
 #include <chrono>
-#include "src/collect.hpp"
+#include "src/cpu.hpp"
 
 using std::cout;
 using std::endl;
@@ -30,47 +30,49 @@ void setInterval(auto function, int interval) {
             function();
         }
     });
-    t.detach();
+
+    t.join();
 }
 
 int main() {
-    lib::init();
-
     setInterval([&]() {
         system("clear");
 
-        cpu::GetCpuFrequencyResult freq = cpu::get_cpu_frequency();
-        shared::cpu_info cpu = cpu::collect();
+        cpu::Data cpu_data = cpu::collect();
+
+        auto freq = cpu_data.get_cpu_frequency();
+        auto load_avg = cpu_data.get_average_load();
+        auto core_load = cpu_data.get_core_load();
 
         cout << "================= CPU frequency =================" << endl;
         cout << freq.value << " " << freq.units << endl;
 
         cout << "================= CPU name =================" << endl;
-        cout << cpu::get_cpu_mame() << endl;
+        cout << cpu_data.get_cpu_mame() << endl;
 
         cout << "================= CPU average load =================" << endl;
-        cout << cpu.load_avg[0] << " " << cpu.load_avg[1] << " " << cpu.load_avg[2] << endl;
+        cout << load_avg.one_min << " " << load_avg.five_min << " " << load_avg.fifteen_min << endl;
 
         cout << "================= CPU temp =================" << endl;
-        cout << cpu.temp.at(0).back() << "°C" << endl;
+        cout << cpu_data.get_cpu_temp() << "°C" << endl;
 
         cout << "================= CPU core count =================" << endl;
-        cout << shared::core_count << endl;
+        cout << cpu_data.get_core_count() << endl;
 
         cout << "================= CPU load =================" << endl;
-        cout << cpu.cpu_percent.at("total").back() << "%" << endl;
+        cout << cpu_data.get_cpu_load_percent() << "%" << endl;
 
         cout << "================= CPU cores load =================" << endl;
         int n = 0;
 
-        while (n < shared::core_count) {
-            cout << "C" << n << ": " << cpu.core_percent.at(n).back();
-            cout << "  C" << n + 1 << ": " << cpu.core_percent.at(n + 1).back() << endl;
+        while (n < cpu_data.get_core_count()) {
+            cout << "C" << n << ": " << core_load.at(n).back();
+            cout << "  C" << n + 1 << ": " <<  core_load.at(n + 1).back() << endl;
 
             n = n + 2;
         }
-
     }, 1000);
 
-    for(;;); // keep main thread active;
+
+    return 0;
 }

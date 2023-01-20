@@ -30,7 +30,8 @@ namespace rh = robin_hood;
 
 namespace shared {
     fs::path proc_path, passwd_path;
-    long page_size, clk_tck, core_count;
+    long page_size, clk_tck;
+    int core_count;
 
     struct cpu_info {
         rh::unordered_flat_map<string, deque<long long>> cpu_percent = {
