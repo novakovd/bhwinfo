@@ -32,30 +32,7 @@ namespace shared {
     fs::path proc_path, passwd_path;
     long page_size, clk_tck;
     int core_count;
-
-    struct cpu_info {
-        rh::unordered_flat_map<string, deque<long long>> cpu_percent = {
-                {"total", {}},
-                {"user", {}},
-                {"nice", {}},
-                {"system", {}},
-                {"idle", {}},
-                {"iowait", {}},
-                {"irq", {}},
-                {"softirq", {}},
-                {"steal", {}},
-                {"guest", {}},
-                {"guest_nice", {}}
-        };
-        vector<deque<long long>> core_percent;
-        vector<deque<long long>> temp;
-        long long temp_max = 0;
-
-        /**
-         * last one, five, and 10 minute periods
-         */
-        array<float, 3> load_avg;
-    };
+    fs::path freq_path;
 
     inline void init() {
         // Shared global variables init
@@ -68,14 +45,7 @@ namespace shared {
         passwd_path =
                 (fs::is_regular_file(fs::path("/etc/passwd")) and access("/etc/passwd", R_OK) != -1) ? "/etc/passwd" : "";
 
-        core_count = sysconf(_SC_NPROCESSORS_ONLN);
-
-        if (core_count < 1) {
-            core_count = sysconf(_SC_NPROCESSORS_CONF);
-            if (core_count < 1) {
-                core_count = 1;
-            }
-        }
+        freq_path = "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq";
 
         page_size = sysconf(_SC_PAGE_SIZE);
 

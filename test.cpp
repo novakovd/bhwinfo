@@ -17,7 +17,7 @@
 #include <iostream>
 #include "thread"
 #include <chrono>
-#include "src/cpu.hpp"
+#include "src/collect.hpp"
 
 using std::cout;
 using std::endl;
@@ -35,10 +35,12 @@ void setInterval(auto function, int interval) {
 }
 
 int main() {
+    auto cpu_data_collector = cpu::DataCollector{};
+
     setInterval([&]() {
         system("clear");
 
-        cpu::Data cpu_data = cpu::collect();
+        cpu::Data cpu_data = cpu_data_collector.collect();
 
         auto freq = cpu_data.get_cpu_frequency();
         auto load_avg = cpu_data.get_average_load();
