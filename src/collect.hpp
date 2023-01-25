@@ -17,6 +17,8 @@
 
 #include <filesystem>
 #include <numeric>
+#include <utility>
+#include <any>
 #include "cmath"
 #include "ut.hpp"
 
@@ -91,24 +93,37 @@ namespace cpu {
             {"guest_nice", 0}
     };
 
-    class Data {
+    class StaticValuesAware {
+    protected:
+        string cpu_name;
+        int core_count;
+    };
+
+    class Data : StaticValuesAware {
     private:
         long long cpu_load_percent;
         int64_t cpu_temp;
         CpuAvgLoad cpu_load_avg;
         vector<deque<long long>> core_load;
+        CpuFrequency cpu_frequency;
 
     public:
         Data(
             long long cpu_load_percent,
             int64_t cpu_temp,
             CpuAvgLoad cpu_load_avg,
-            vector<deque<long long>> core_load
+            vector<deque<long long>> core_load,
+            CpuFrequency cpu_frequency,
+            string cpu_name,
+            int core_count
         ) {
             this->cpu_load_percent = cpu_load_percent;
             this->cpu_temp = cpu_temp;
             this->cpu_load_avg = cpu_load_avg;
-            this->core_load = core_load;
+            this->core_load = std::move(core_load);
+            this->cpu_frequency = std::move(cpu_frequency);
+            this->cpu_name = std::move(cpu_name);
+            this->core_count = core_count;
         }
 
         [[nodiscard]] long long get_cpu_load_percent() const {
@@ -123,172 +138,24 @@ namespace cpu {
             return this->cpu_load_avg;
         }
 
-        int get_core_count() {
-            int core_count = sysconf(_SC_NPROCESSORS_ONLN);
-
-            if (core_count < 1) {
-                core_count = sysconf(_SC_NPROCESSORS_CONF);
-                if (core_count < 1) {
-                    core_count = 1;
-                }
-            }
-
-            return core_count;
-        }
-
         vector<deque<long long>> get_core_load() {
             return this->core_load;
         }
 
         CpuFrequency get_cpu_frequency() {
-            static int failed{}; // defaults to 0
-            CpuFrequency result{};
-
-            if (failed > 4)
-                return result;
-
-            try {
-                double hz{}; // defaults to 0.0
-
-                // Try to get freq from /sys/devices/system/cpu/cpufreq/policy first (faster)
-                if (not shared::freq_path.empty()) {
-                    hz = stod(ut::file::read(shared::freq_path, "0.0")) / 1000;
-
-                    if (hz <= 0.0 and ++failed >= 2)
-                        shared::freq_path.clear();
-                }
-
-                // If freq from /sys failed or is missing try to use /proc/cpuinfo
-                if (hz <= 0.0) {
-                    std::ifstream cpufreq(shared::proc_path / "cpuinfo");
-
-                    if (cpufreq.good()) {
-                        while (cpufreq.ignore(ut::maxStreamSize, '\n')) {
-                            if (cpufreq.peek() == 'c') {
-                                cpufreq.ignore(ut::maxStreamSize, ' ');
-                                if (cpufreq.peek() == 'M') {
-                                    cpufreq.ignore(ut::maxStreamSize, ':');
-                                    cpufreq.ignore(1);
-                                    cpufreq >> hz;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (hz <= 1 or hz >= 1000000)
-                    throw std::runtime_error("Failed to read /sys/devices/system/cpu/cpufreq/policy and /proc/cpuinfo.");
-
-                if (hz >= 1000) {
-                    if (hz >= 10000) result.value = round(hz / 1000);
-                    else result.value = round(hz / 100) / 10.0;
-
-                    result.units = "GHz";
-                }
-                else if (hz > 0) {
-                    result.value = round(hz);
-                    result.units = "MHz";
-                }
-            }
-            catch (const std::exception& e) {
-                if (++failed < 5)
-                    return result;
-                else {
-                    ut::logger::warning("get_cpu_frequency() : " + string{e.what()});
-
-                    return result;
-                }
-            }
-
-            return result;
+            return this->cpu_frequency;
         }
 
         string get_cpu_mame() {
-            string name;
-            std::ifstream cpu_info(shared::proc_path / "cpuinfo");
-
-            if (cpu_info.good()) {
-                for (string instr; getline(cpu_info, instr, ':') and not instr.starts_with("model name");)
-                    cpu_info.ignore(ut::maxStreamSize, '\n');
-
-                if (cpu_info.bad()) return name;
-                else if (not cpu_info.eof()) {
-                    cpu_info.ignore(1);
-                    getline(cpu_info, name);
-                }
-                else if (fs::exists("/sys/devices")) {
-                    for (const auto& d : fs::directory_iterator("/sys/devices")) {
-                        if (string(d.path().filename()).starts_with("arm")) {
-                            name = d.path().filename();
-                            break;
-                        }
-                    }
-                    if (not name.empty()) {
-                        auto name_vec = ut::str::split(name, '_');
-
-                        if (name_vec.size() < 2) return ut::str::capitalize(name);
-                        else
-                            return
-                                    ut::str::capitalize(name_vec.at(1))+
-                                    (name_vec.size() > 2 ? ' '+
-                                                           ut::str::capitalize(name_vec.at(2)) : "");
-                    }
-
-                }
-
-                auto name_vec = ut::str::split(name);
-
-                if ((ut::str::contains(name, "Xeon"s) or
-                     ut::vec::contains(name_vec, "Duo"s)) and
-                    ut::vec::contains(name_vec, "CPU"s)
-                        ) {
-                    auto cpu_pos = ut::vec::index(name_vec, "CPU"s);
-
-                    if (cpu_pos < name_vec.size() - 1 and not name_vec.at(cpu_pos + 1).ends_with(')'))
-                        name = name_vec.at(cpu_pos + 1);
-                    else
-                        name.clear();
-                }
-                else if (ut::vec::contains(name_vec, "Ryzen"s)) {
-                    auto ryz_pos = ut::vec::index(name_vec, "Ryzen"s);
-
-                    name = "Ryzen"	+ (ryz_pos < name_vec.size() - 1 ? ' ' + name_vec.at(ryz_pos + 1) : "")
-                           + (ryz_pos < name_vec.size() - 2 ? ' ' + name_vec.at(ryz_pos + 2) : "");
-                }
-                else if (ut::str::contains(name, "Intel"s) and ut::vec::contains(name_vec, "CPU"s)) {
-                    auto cpu_pos = ut::vec::index(name_vec, "CPU"s);
-
-                    if (cpu_pos < name_vec.size() - 1 and not
-                            name_vec.at(cpu_pos + 1).ends_with(')') and
-                        name_vec.at(cpu_pos + 1) != "@")  name = name_vec.at(cpu_pos + 1);
-                    else
-                        name.clear();
-                }
-                else
-                    name.clear();
-
-                if (name.empty() and not name_vec.empty()) {
-                    for (const auto& n : name_vec) {
-                        if (n == "@") break;
-                        name += n + ' ';
-                    }
-
-                    name.pop_back();
-
-                    for (const auto& r : {"Processor", "CPU", "(R)", "(TM)", "Intel", "AMD", "Core"}) {
-                        name = ut::str::replace(name, r, "");
-                        name = ut::str::replace(name, "  ", " ");
-                    }
-                    name = ut::str::trim(name);
-                }
-            }
-
-            return name;
+            return this->cpu_name;
         }
+
+        [[nodiscard]] int get_core_count() const {
+            return this->core_count;
+        };
     };
 
-    class DataCollector {
+    class DataCollector : StaticValuesAware {
     public:
         DataCollector() {
             shared::init();
@@ -310,6 +177,9 @@ namespace cpu {
             for (const auto& [sensor, ignored] : found_sensors) {
                 available_sensors.push_back(sensor);
             }
+
+            cpu_name = get_cpu_mame();
+            core_count = get_core_count();
         }
     private:
         string cpu_sensor;
@@ -516,6 +386,166 @@ namespace cpu {
             }
         }
 
+        int get_core_count() {
+            int core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+            if (core_count < 1) {
+                core_count = sysconf(_SC_NPROCESSORS_CONF);
+                if (core_count < 1) {
+                    core_count = 1;
+                }
+            }
+
+            return core_count;
+        }
+
+        CpuFrequency get_cpu_frequency() {
+            static int failed{}; // defaults to 0
+            CpuFrequency result{};
+
+            if (failed > 4)
+                return result;
+
+            try {
+                double hz{}; // defaults to 0.0
+
+                // Try to get freq from /sys/devices/system/cpu/cpufreq/policy first (faster)
+                if (not shared::freq_path.empty()) {
+                    hz = stod(ut::file::read(shared::freq_path, "0.0")) / 1000;
+
+                    if (hz <= 0.0 and ++failed >= 2)
+                        shared::freq_path.clear();
+                }
+
+                // If freq from /sys failed or is missing try to use /proc/cpuinfo
+                if (hz <= 0.0) {
+                    std::ifstream cpufreq(shared::proc_path / "cpuinfo");
+
+                    if (cpufreq.good()) {
+                        while (cpufreq.ignore(ut::maxStreamSize, '\n')) {
+                            if (cpufreq.peek() == 'c') {
+                                cpufreq.ignore(ut::maxStreamSize, ' ');
+                                if (cpufreq.peek() == 'M') {
+                                    cpufreq.ignore(ut::maxStreamSize, ':');
+                                    cpufreq.ignore(1);
+                                    cpufreq >> hz;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (hz <= 1 or hz >= 1000000)
+                    throw std::runtime_error("Failed to read /sys/devices/system/cpu/cpufreq/policy and /proc/cpuinfo.");
+
+                if (hz >= 1000) {
+                    if (hz >= 10000) result.value = round(hz / 1000);
+                    else result.value = round(hz / 100) / 10.0;
+
+                    result.units = "GHz";
+                }
+                else if (hz > 0) {
+                    result.value = round(hz);
+                    result.units = "MHz";
+                }
+            }
+            catch (const std::exception& e) {
+                if (++failed < 5)
+                    return result;
+                else {
+                    ut::logger::warning("get_cpu_frequency() : " + string{e.what()});
+
+                    return result;
+                }
+            }
+
+            return result;
+        }
+
+        string get_cpu_mame() {
+            string name;
+            std::ifstream cpu_info(shared::proc_path / "cpuinfo");
+
+            if (cpu_info.good()) {
+                for (string instr; getline(cpu_info, instr, ':') and not instr.starts_with("model name");)
+                    cpu_info.ignore(ut::maxStreamSize, '\n');
+
+                if (cpu_info.bad()) return name;
+                else if (not cpu_info.eof()) {
+                    cpu_info.ignore(1);
+                    getline(cpu_info, name);
+                }
+                else if (fs::exists("/sys/devices")) {
+                    for (const auto& d : fs::directory_iterator("/sys/devices")) {
+                        if (string(d.path().filename()).starts_with("arm")) {
+                            name = d.path().filename();
+                            break;
+                        }
+                    }
+                    if (not name.empty()) {
+                        auto name_vec = ut::str::split(name, '_');
+
+                        if (name_vec.size() < 2) return ut::str::capitalize(name);
+                        else
+                            return
+                                    ut::str::capitalize(name_vec.at(1))+
+                                    (name_vec.size() > 2 ? ' '+
+                                                           ut::str::capitalize(name_vec.at(2)) : "");
+                    }
+
+                }
+
+                auto name_vec = ut::str::split(name);
+
+                if ((ut::str::contains(name, "Xeon"s) or
+                     ut::vec::contains(name_vec, "Duo"s)) and
+                    ut::vec::contains(name_vec, "CPU"s)
+                        ) {
+                    auto cpu_pos = ut::vec::index(name_vec, "CPU"s);
+
+                    if (cpu_pos < name_vec.size() - 1 and not name_vec.at(cpu_pos + 1).ends_with(')'))
+                        name = name_vec.at(cpu_pos + 1);
+                    else
+                        name.clear();
+                }
+                else if (ut::vec::contains(name_vec, "Ryzen"s)) {
+                    auto ryz_pos = ut::vec::index(name_vec, "Ryzen"s);
+
+                    name = "Ryzen"	+ (ryz_pos < name_vec.size() - 1 ? ' ' + name_vec.at(ryz_pos + 1) : "")
+                           + (ryz_pos < name_vec.size() - 2 ? ' ' + name_vec.at(ryz_pos + 2) : "");
+                }
+                else if (ut::str::contains(name, "Intel"s) and ut::vec::contains(name_vec, "CPU"s)) {
+                    auto cpu_pos = ut::vec::index(name_vec, "CPU"s);
+
+                    if (cpu_pos < name_vec.size() - 1 and not
+                            name_vec.at(cpu_pos + 1).ends_with(')') and
+                        name_vec.at(cpu_pos + 1) != "@")  name = name_vec.at(cpu_pos + 1);
+                    else
+                        name.clear();
+                }
+                else
+                    name.clear();
+
+                if (name.empty() and not name_vec.empty()) {
+                    for (const auto& n : name_vec) {
+                        if (n == "@") break;
+                        name += n + ' ';
+                    }
+
+                    name.pop_back();
+
+                    for (const auto& r : {"Processor", "CPU", "(R)", "(TM)", "Intel", "AMD", "Core"}) {
+                        name = ut::str::replace(name, r, "");
+                        name = ut::str::replace(name, "  ", " ");
+                    }
+                    name = ut::str::trim(name);
+                }
+            }
+
+            return name;
+        }
+
     public:
         Data collect() {
             auto& cpu = current_cpu;
@@ -641,7 +671,10 @@ namespace cpu {
                 cpu.cpu_percent.at("total").back(),
                 found_sensors.at( cpu_sensor).temp,
                 CpuAvgLoad{cpu.load_avg[0], cpu.load_avg[1], cpu.load_avg[2]},
-                cpu.core_percent
+                cpu.core_percent,
+                get_cpu_frequency(),
+                cpu_name,
+                core_count
             };
         }
     };
