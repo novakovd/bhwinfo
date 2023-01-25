@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <ncurses.h>
 #include <iostream>
 #include "thread"
 #include <chrono>
@@ -23,7 +24,7 @@ using std::cout;
 using std::endl;
 using std::thread;
 
-void setInterval(auto function, int interval) {
+void set_interval(auto function, int interval) {
     thread t([&]() {
         for(;;) {
             std::this_thread::sleep_for(std::chrono::milliseconds(interval));
@@ -34,47 +35,61 @@ void setInterval(auto function, int interval) {
     t.join();
 }
 
+void draw_border() {
+    printw("\n------------------------------------- \n");
+}
+
 int main() {
     auto cpu_data_collector = cpu::DataCollector{};
 
-    setInterval([&]() {
-        system("clear");
+    initscr();
 
+    set_interval([&]() {
         cpu::Data cpu_data = cpu_data_collector.collect();
 
         auto freq = cpu_data.get_cpu_frequency();
         auto load_avg = cpu_data.get_average_load();
         auto core_load = cpu_data.get_core_load();
 
-        cout << "================= CPU frequency =================" << endl;
-        cout << freq.value << " " << freq.units << endl;
+        printw("%s %f %s", "CPU frequency:", freq.value, freq.units.c_str());
 
-        cout << "================= CPU name =================" << endl;
-        cout << cpu_data.get_cpu_mame() << endl;
+        draw_border();
 
-        cout << "================= CPU average load =================" << endl;
-        cout << load_avg.one_min << " " << load_avg.five_min << " " << load_avg.fifteen_min << endl;
+        printw("%s %s", "CPU name:", cpu_data.get_cpu_mame().c_str());
 
-        cout << "================= CPU temp =================" << endl;
-        cout << cpu_data.get_cpu_temp() << "°C" << endl;
+        draw_border();
 
-        cout << "================= CPU core count =================" << endl;
-        cout << cpu_data.get_core_count() << endl;
+        printw("%s %f %f %f", "CPU average load:", load_avg.one_min, load_avg.five_min, load_avg.fifteen_min);
 
-        cout << "================= CPU load =================" << endl;
-        cout << cpu_data.get_cpu_load_percent() << "%" << endl;
+        draw_border();
 
-        cout << "================= CPU cores load =================" << endl;
+        printw("%s %ld%s","CPU temp:", cpu_data.get_cpu_temp(), "°C");
+
+        draw_border();
+
+        printw("%s %d", "CPU core count:", cpu_data.get_core_count());
+
+        draw_border();
+
+        printw("%s %lld%s", "CPU load:", cpu_data.get_cpu_load_percent(), "%");
+
+        draw_border();
+
+        printw("CPU cores load: \n");
+
         int n = 0;
 
         while (n < cpu_data.get_core_count()) {
-            cout << "C" << n << ": " << core_load.at(n).back();
-            cout << "  C" << n + 1 << ": " <<  core_load.at(n + 1).back() << endl;
+            printw("%s%d% lld%s", "C", n, core_load.at(n).back(), "\n");
 
-            n = n + 2;
+            n++;
         }
+
+        refresh();
+        clear();
     }, 1000);
 
+    endwin();
 
     return 0;
 }

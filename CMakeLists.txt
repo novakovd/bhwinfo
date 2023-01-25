@@ -13,9 +13,13 @@ project (${PROJECT_NAME})
 set(INC, ${ID}/robin_hood.h)
 set(FILES ${SD}/ut.hpp ${SD}/shared.hpp ${SD}/collect.hpp)
 
+find_package(Curses REQUIRED)
+include_directories(${CURSES_INCLUDE_DIR})
+
 file(GLOB SOURCE_FILES
         ${FILES}
         ${INC}
 )
 
 add_executable(${PROJECT_NAME} test.cpp)
+target_link_libraries(${PROJECT_NAME} ${CURSES_LIBRARIES})

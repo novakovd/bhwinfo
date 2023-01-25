@@ -142,7 +142,7 @@ namespace cpu {
 
         CpuFrequency get_cpu_frequency() {
             static int failed{}; // defaults to 0
-            CpuFrequency result;
+            CpuFrequency result{};
 
             if (failed > 4)
                 return result;
@@ -195,7 +195,7 @@ namespace cpu {
                 if (++failed < 5)
                     return result;
                 else {
-                    ut::logger::warning("get_cpu_hz() : " + string{e.what()});
+                    ut::logger::warning("get_cpu_frequency() : " + string{e.what()});
 
                     return result;
                 }
