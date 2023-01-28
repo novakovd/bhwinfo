@@ -18,7 +18,7 @@
 #include <filesystem>
 #include <unistd.h>
 #include <deque>
-#include "../inc/robin_hood.h"
+#include <vector>
 
 using std::string;
 using std::array;
@@ -26,7 +26,6 @@ using std::deque;
 using std::vector;
 
 namespace fs = std::filesystem;
-namespace rh = robin_hood;
 
 namespace shared {
     fs::path proc_path, passwd_path;

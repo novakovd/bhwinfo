@@ -19,6 +19,8 @@
 #include <numeric>
 #include <utility>
 #include <any>
+#include <unordered_map>
+#include <algorithm>
 #include "cmath"
 #include "ut.hpp"
 
@@ -36,7 +38,6 @@ using std::streamsize;
 using namespace std::literals;
 
 namespace fs = std::filesystem;
-namespace rh = robin_hood;
 
 namespace cpu {
     struct CpuFrequency {
@@ -59,7 +60,7 @@ namespace cpu {
     };
 
     struct CpuInfo {
-        rh::unordered_flat_map<string, deque<long long>> cpu_percent = {
+        std::unordered_map<string, deque<long long>> cpu_percent = {
                 {"total", {}},
                 {"user", {}},
                 {"nice", {}},
@@ -78,7 +79,7 @@ namespace cpu {
         array<float, 3> load_avg{};
     };
 
-    rh::unordered_flat_map<string, long long> CpuOld = {
+    std::unordered_map<string, long long> CpuOld = {
             {"totals", 0},
             {"idles", 0},
             {"user", 0},
@@ -188,8 +189,8 @@ namespace cpu {
         vector<long long> core_old_idles;
         vector<string> available_sensors = {"Auto"};
         vector<string> available_fields;
-        rh::unordered_flat_map<int, int> core_mapping;
-        rh::unordered_flat_map<string, Sensor> found_sensors;
+        std::unordered_map<int, int> core_mapping;
+        std::unordered_map<string, Sensor> found_sensors;
         CpuInfo current_cpu;
         bool cpu_temp_only{};   // defaults to false
         bool got_sensors;
