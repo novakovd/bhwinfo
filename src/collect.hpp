@@ -60,20 +60,20 @@ namespace cpu {
     };
 
     struct CpuInfo {
-        std::unordered_map<string, deque<long long>> cpu_percent = {
-                {"total", {}},
-                {"user", {}},
-                {"nice", {}},
-                {"system", {}},
-                {"idle", {}},
-                {"iowait", {}},
-                {"irq", {}},
-                {"softirq", {}},
-                {"steal", {}},
-                {"guest", {}},
-                {"guest_nice", {}}
+        std::unordered_map<string, long long> cpu_percent = {
+                {"total", 0},
+                {"user", 0},
+                {"nice", 0},
+                {"system", 0},
+                {"idle", 0},
+                {"iowait", 0},
+                {"irq", 0},
+                {"softirq", 0},
+                {"steal", 0},
+                {"guest", 0},
+                {"guest_nice", 0}
         };
-        vector<deque<long long>> core_percent;
+        vector<long long> core_percent;
         vector<deque<long long>> temp;
         long long temp_max = 0;
         array<float, 3> load_avg{};
@@ -105,7 +105,7 @@ namespace cpu {
         long long cpu_load_percent;
         int64_t cpu_temp;
         CpuAvgLoad cpu_load_avg;
-        vector<deque<long long>> core_load;
+        vector<long long> core_load;
         CpuFrequency cpu_frequency;
 
     public:
@@ -113,7 +113,7 @@ namespace cpu {
             long long cpu_load_percent,
             int64_t cpu_temp,
             CpuAvgLoad cpu_load_avg,
-            vector<deque<long long>> core_load,
+            vector<long long> core_load,
             CpuFrequency cpu_frequency,
             string cpu_name,
             int core_count
@@ -139,7 +139,7 @@ namespace cpu {
             return this->cpu_load_avg;
         }
 
-        vector<deque<long long>> get_core_load() {
+        vector<long long> get_core_load() {
             return this->core_load;
         }
 
@@ -169,10 +169,6 @@ namespace cpu {
             core_old_totals.insert(core_old_totals.begin(),  shared::core_count, 0);
             core_old_idles.insert(core_old_idles.begin(),  shared::core_count, 0);
 
-            for (auto& [field, vec] : current_cpu.cpu_percent) {
-                if (not vec.empty()) available_fields.push_back(field);
-            }
-
             got_sensors = get_sensors();
 
             for (const auto& [sensor, ignored] : found_sensors) {
@@ -188,7 +184,6 @@ namespace cpu {
         vector<long long> core_old_totals;
         vector<long long> core_old_idles;
         vector<string> available_sensors = {"Auto"};
-        vector<string> available_fields;
         std::unordered_map<int, int> core_mapping;
         std::unordered_map<string, Sensor> found_sensors;
         CpuInfo current_cpu;
@@ -580,7 +575,7 @@ namespace cpu {
                                 core_old_idles.push_back(0);
                                 cpu.core_percent.push_back({});
                             }
-                            cpu.core_percent.at(i-1).push_back(0);
+                            cpu.core_percent.at(i-1) = 0;
                         }
                     }
                     else {
@@ -598,8 +593,7 @@ namespace cpu {
                                     core_old_idles.push_back(0);
                                     cpu.core_percent.push_back({});
                                 }
-                                cpu.core_percent[i-1].push_back(0);
-                                if (cpu.core_percent.at(i-1).size() > 40) cpu.core_percent.at(i-1).pop_front();
+                                cpu.core_percent.at(i-1) = 0;
                                 i++;
                             }
                         }
@@ -628,15 +622,15 @@ namespace cpu {
                             CpuOld.at("idles") = idles;
 
                             //? Total usage of cpu
-                            cpu.cpu_percent.at("total").push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
+                            cpu.cpu_percent.at("total") = clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll);
 
                             //? Populate cpu.cpu_percent with all fields from stat
-                            for (int ii = 0; const auto& val : times) {
-                                cpu.cpu_percent.at(time_names.at(ii)).push_back(clamp((long long)round((double)(val - CpuOld.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll));
-                                CpuOld.at(time_names.at(ii)) = val;
-
-                                if (++ii == 10) break;
-                            }
+//                            for (int ii = 0; const auto& val : times) {
+//                                cpu.cpu_percent.at(time_names.at(ii)).push_back(clamp((long long)round((double)(val - CpuOld.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll));
+//                                CpuOld.at(time_names.at(ii)) = val;
+//
+//                                if (++ii == 10) break;
+//                            }
                             continue;
                         }
                             //? Calculate cpu total for each core
@@ -652,7 +646,7 @@ namespace cpu {
                             core_old_totals.at(i-1) = totals;
                             core_old_idles.at(i-1) = idles;
 
-                            cpu.core_percent.at(i-1).push_back(clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll));
+                            cpu.core_percent.at(i-1) = clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll);
                         }
                     }
                 }
@@ -669,7 +663,7 @@ namespace cpu {
                 update_sensors();
 
             return Data {
-                cpu.cpu_percent.at("total").back(),
+                cpu.cpu_percent.at("total"),
                 found_sensors.at( cpu_sensor).temp,
                 CpuAvgLoad{cpu.load_avg[0], cpu.load_avg[1], cpu.load_avg[2]},
                 cpu.core_percent,

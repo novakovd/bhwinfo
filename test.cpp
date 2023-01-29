@@ -77,7 +77,7 @@ int main() {
         while (n < cpu_data.get_core_count()) {
             if(n > 0) printw(" ");
 
-            printw("%s%d=%lld", "C", n, core_load.at(n).back());
+            printw("%s%d=%lld", "C", n, core_load.at(n));
 
             if(n != cpu_data.get_core_count() - 1) printw(" |");
 
