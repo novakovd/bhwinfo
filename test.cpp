@@ -35,8 +35,15 @@ void set_interval(auto function, int interval) {
     t.join();
 }
 
-void draw_border() {
+void inline printw_border() {
     printw("\n------------------------------------- \n");
+}
+
+template<typename... Args>
+void printw_with_border(const char* fmt , Args... args) {
+    printw(fmt, args...);
+
+    printw_border();
 }
 
 int main() {
@@ -51,39 +58,33 @@ int main() {
         auto load_avg = cpu_data.get_average_load();
         auto core_load = cpu_data.get_core_load();
 
-        printw("%s %f %s", "CPU frequency:", freq.value, freq.units.c_str());
+        printw_with_border("%s %f %s", "CPU frequency:", freq.value, freq.units.c_str());
 
-        draw_border();
+        printw_with_border("%s %s", "CPU name:", cpu_data.get_cpu_mame().c_str());
 
-        printw("%s %s", "CPU name:", cpu_data.get_cpu_mame().c_str());
+        printw_with_border("%s %f %f %f", "CPU average load:", load_avg.one_min, load_avg.five_min, load_avg.fifteen_min);
 
-        draw_border();
+        printw_with_border("%s %ld%s","CPU temp:", cpu_data.get_cpu_temp(), "°C");
 
-        printw("%s %f %f %f", "CPU average load:", load_avg.one_min, load_avg.five_min, load_avg.fifteen_min);
+        printw_with_border("%s %d", "CPU core count:", cpu_data.get_core_count());
 
-        draw_border();
-
-        printw("%s %ld%s","CPU temp:", cpu_data.get_cpu_temp(), "°C");
-
-        draw_border();
-
-        printw("%s %d", "CPU core count:", cpu_data.get_core_count());
-
-        draw_border();
-
-        printw("%s %lld%s", "CPU load:", cpu_data.get_cpu_load_percent(), "%");
-
-        draw_border();
+        printw_with_border("%s %lld%s", "CPU load:", cpu_data.get_cpu_load_percent(), "%");
 
         printw("CPU cores load: \n");
 
         int n = 0;
 
         while (n < cpu_data.get_core_count()) {
-            printw("%s%d% lld%s", "C", n, core_load.at(n).back(), "\n");
+            if(n > 0) printw(" ");
+
+            printw("%s%d=%lld", "C", n, core_load.at(n).back());
+
+            if(n != cpu_data.get_core_count() - 1) printw(" |");
 
             n++;
         }
+
+        printw_border();
 
         refresh();
         clear();
