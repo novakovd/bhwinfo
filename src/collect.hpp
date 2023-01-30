@@ -185,7 +185,6 @@ namespace cpu {
         vector<string> available_sensors = {"Auto"};
         std::unordered_map<string, Sensor> found_sensors;
         CpuInfo current_cpu;
-        bool cpu_temp_only{};   // defaults to false
         bool got_sensors;
         const array<string ,10> time_names {
                 "user"s, "nice"s, "system"s, "idle"s, "iowait"s,
@@ -325,16 +324,6 @@ namespace cpu {
 
             }
             catch (...) {}
-
-            if (not got_core_temp or core_sensors.empty()) {
-                cpu_temp_only = true;
-            }
-            else {
-                rng::sort(core_sensors, rng::less{});
-                rng::stable_sort(core_sensors, [](const auto& a, const auto& b){
-                    return a.size() < b.size();
-                });
-            }
 
             if (cpu_sensor.empty() and not found_sensors.empty()) {
                 for (const auto& [name, sensor] : found_sensors) {
