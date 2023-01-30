@@ -74,7 +74,6 @@ namespace cpu {
                 {"guest_nice", 0}
         };
         vector<long long> core_percent;
-        vector<deque<long long>> temp;
         long long temp_max = 0;
         array<float, 3> load_avg{};
     };
@@ -164,19 +163,19 @@ namespace cpu {
             if (not fs::exists(shared::freq_path) or access(shared::freq_path.c_str(), R_OK) == -1)
                 shared::freq_path.clear();
 
-            current_cpu.core_percent.insert(current_cpu.core_percent.begin(), shared::core_count, {});
-            current_cpu.temp.insert(current_cpu.temp.begin(), shared::core_count + 1, {});
-            core_old_totals.insert(core_old_totals.begin(),  shared::core_count, 0);
-            core_old_idles.insert(core_old_idles.begin(),  shared::core_count, 0);
+            /** static values */
+            cpu_name = get_cpu_mame();
+            core_count = get_core_count();
+
+            current_cpu.core_percent.insert(current_cpu.core_percent.begin(), core_count, {});
+            core_old_totals.insert(core_old_totals.begin(),  core_count, 0);
+            core_old_idles.insert(core_old_idles.begin(),  core_count, 0);
 
             got_sensors = get_sensors();
 
             for (const auto& [sensor, ignored] : found_sensors) {
                 available_sensors.push_back(sensor);
             }
-
-            cpu_name = get_cpu_mame();
-            core_count = get_core_count();
         }
     private:
         string cpu_sensor;
@@ -184,7 +183,6 @@ namespace cpu {
         vector<long long> core_old_totals;
         vector<long long> core_old_idles;
         vector<string> available_sensors = {"Auto"};
-        std::unordered_map<int, int> core_mapping;
         std::unordered_map<string, Sensor> found_sensors;
         CpuInfo current_cpu;
         bool cpu_temp_only{};   // defaults to false
@@ -362,24 +360,7 @@ namespace cpu {
             const auto& cpu_s = cpu_sensor;
 
             found_sensors.at(cpu_s).temp = stol(ut::file::read(found_sensors.at(cpu_s).path, "0")) / 1000;
-            current_cpu.temp.at(0).push_back(found_sensors.at(cpu_s).temp);
             current_cpu.temp_max = found_sensors.at(cpu_s).crit;
-            if (current_cpu.temp.at(0).size() > 20) current_cpu.temp.at(0).pop_front();
-
-            if (not cpu_temp_only) {
-                vector<string> done;
-                for (const auto& sensor : core_sensors) {
-                    if (ut::vec::contains(done, sensor)) continue;
-                    found_sensors.at(sensor).temp = stol(ut::file::read(found_sensors.at(sensor).path, "0")) / 1000;
-                    done.push_back(sensor);
-                }
-                for (const auto& [core, temp] : core_mapping) {
-                    if (cmp_less(core + 1, current_cpu.temp.size()) and cmp_less(temp, core_sensors.size())) {
-                        current_cpu.temp.at(core + 1).push_back(found_sensors.at(core_sensors.at(temp)).temp);
-                        if (current_cpu.temp.at(core + 1).size() > 20) current_cpu.temp.at(core + 1).pop_front();
-                    }
-                }
-            }
         }
 
         int get_core_count() {
@@ -562,7 +543,7 @@ namespace cpu {
                 stream.open(shared::proc_path / "stat");
 
                 int i = 0;
-                int target = shared::core_count;
+                int target = core_count;
 
                 for (; i <= target or (stream.good() and stream.peek() == 'c'); i++) {
                     //? Make sure to add zero value for missing core values if at end of file
@@ -625,12 +606,12 @@ namespace cpu {
                             cpu.cpu_percent.at("total") = clamp((long long)round((double)(calc_totals - calc_idles) * 100 / calc_totals), 0ll, 100ll);
 
                             //? Populate cpu.cpu_percent with all fields from stat
-//                            for (int ii = 0; const auto& val : times) {
-//                                cpu.cpu_percent.at(time_names.at(ii)).push_back(clamp((long long)round((double)(val - CpuOld.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll));
-//                                CpuOld.at(time_names.at(ii)) = val;
-//
-//                                if (++ii == 10) break;
-//                            }
+                            for (int ii = 0; const auto& val : times) {
+                                cpu.cpu_percent.at(time_names.at(ii)) = clamp((long long)round((double)(val - CpuOld.at(time_names.at(ii))) * 100 / calc_totals), 0ll, 100ll);
+                                CpuOld.at(time_names.at(ii)) = val;
+
+                                if (++ii == 10) break;
+                            }
                             continue;
                         }
                             //? Calculate cpu total for each core

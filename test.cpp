@@ -72,16 +72,12 @@ int main() {
 
         printw("CPU cores load: \n");
 
-        int n = 0;
+        for (int i = 0; i < cpu_data.get_core_count(); i++) {
+            if(i > 0) printw(" ");
 
-        while (n < cpu_data.get_core_count()) {
-            if(n > 0) printw(" ");
+            printw("%s%d=%lld", "C", i, core_load.at(i));
 
-            printw("%s%d=%lld", "C", n, core_load.at(n));
-
-            if(n != cpu_data.get_core_count() - 1) printw(" |");
-
-            n++;
+            if(i != cpu_data.get_core_count() - 1) printw(" |");
         }
 
         printw_border();

@@ -30,7 +30,6 @@ namespace fs = std::filesystem;
 namespace shared {
     fs::path proc_path, passwd_path;
     long page_size, clk_tck;
-    int core_count;
     fs::path freq_path;
 
     inline void init() {
