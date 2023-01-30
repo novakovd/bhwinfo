@@ -51,6 +51,20 @@ namespace cpu {
         double fifteen_min{}; // 10 min for RedHat
     };
 
+    struct CpuUsage {
+        long long total{};
+        long long user{};
+        long long nice{};
+        long long system{};
+        long long idle{};
+        long long iowait{};
+        long long irq{};
+        long long softirq{};
+        long long steal{};
+        long long guest{};
+        long long guest_nice{};
+    };
+
     struct Sensor {
         fs::path path;
         string label;
@@ -74,7 +88,7 @@ namespace cpu {
                 {"guest_nice", 0}
         };
         vector<long long> core_percent;
-        long long temp_max = 0;
+        long long critical_temperature{};
         array<float, 3> load_avg{};
     };
 
@@ -97,11 +111,12 @@ namespace cpu {
     protected:
         string cpu_name;
         int core_count;
+        long long critical_temperature;
     };
 
     class Data : StaticValuesAware {
     private:
-        long long cpu_load_percent;
+        CpuUsage cpu_usage;
         int64_t cpu_temp;
         CpuAvgLoad cpu_load_avg;
         vector<long long> core_load;
@@ -109,50 +124,56 @@ namespace cpu {
 
     public:
         Data(
-            long long cpu_load_percent,
+            CpuUsage cpu_usage,
             int64_t cpu_temp,
             CpuAvgLoad cpu_load_avg,
             vector<long long> core_load,
             CpuFrequency cpu_frequency,
             string cpu_name,
-            int core_count
+            int core_count,
+            long long critical_temperature
         ) {
-            this->cpu_load_percent = cpu_load_percent;
+            this->cpu_usage = cpu_usage;
             this->cpu_temp = cpu_temp;
             this->cpu_load_avg = cpu_load_avg;
             this->core_load = std::move(core_load);
             this->cpu_frequency = std::move(cpu_frequency);
             this->cpu_name = std::move(cpu_name);
             this->core_count = core_count;
+            this->critical_temperature = critical_temperature;
         }
 
-        [[nodiscard]] long long get_cpu_load_percent() const {
-            return this->cpu_load_percent;
+        [[nodiscard]] CpuUsage get_cpu_usage() const {
+            return this->cpu_usage;
         }
 
         [[nodiscard]] int64_t get_cpu_temp() const {
             return this->cpu_temp;
         }
 
-        CpuAvgLoad get_average_load() {
+        [[nodiscard]] CpuAvgLoad get_average_load() {
             return this->cpu_load_avg;
         }
 
-        vector<long long> get_core_load() {
+        [[nodiscard]] vector<long long> get_core_load() {
             return this->core_load;
         }
 
-        CpuFrequency get_cpu_frequency() {
+        [[nodiscard]] CpuFrequency get_cpu_frequency() {
             return this->cpu_frequency;
         }
 
-        string get_cpu_mame() {
+        [[nodiscard]] string get_cpu_mame() {
             return this->cpu_name;
         }
 
         [[nodiscard]] int get_core_count() const {
             return this->core_count;
         };
+
+        [[nodiscard]] long long get_cpu_critical_temperature() const {
+            return this->critical_temperature;
+        }
     };
 
     class DataCollector : StaticValuesAware {
@@ -349,7 +370,7 @@ namespace cpu {
             const auto& cpu_s = cpu_sensor;
 
             found_sensors.at(cpu_s).temp = stol(ut::file::read(found_sensors.at(cpu_s).path, "0")) / 1000;
-            current_cpu.temp_max = found_sensors.at(cpu_s).crit;
+            current_cpu.critical_temperature = found_sensors.at(cpu_s).crit;
         }
 
         int get_core_count() {
@@ -539,12 +560,6 @@ namespace cpu {
                     if ((not stream.good() or stream.peek() != 'c') and i <= target) {
                         if (i == 0) throw std::runtime_error("Failed to parse /proc/stat");
                         else {
-                            //? Fix container sizes if new cores are detected
-                            while (cmp_less(cpu.core_percent.size(), i)) {
-                                core_old_totals.push_back(0);
-                                core_old_idles.push_back(0);
-                                cpu.core_percent.push_back({});
-                            }
                             cpu.core_percent.at(i-1) = 0;
                         }
                     }
@@ -557,12 +572,6 @@ namespace cpu {
 
                             //? Add zero value for core if core number is missing from /proc/stat
                             while (i - 1 < cpuNum) {
-                                //? Fix container sizes if new cores are detected
-                                while (cmp_less(cpu.core_percent.size(), i)) {
-                                    core_old_totals.push_back(0);
-                                    core_old_idles.push_back(0);
-                                    cpu.core_percent.push_back({});
-                                }
                                 cpu.core_percent.at(i-1) = 0;
                                 i++;
                             }
@@ -605,12 +614,6 @@ namespace cpu {
                         }
                             //? Calculate cpu total for each core
                         else {
-                            //? Fix container sizes if new cores are detected
-                            while (cmp_less(cpu.core_percent.size(), i)) {
-                                core_old_totals.push_back(0);
-                                core_old_idles.push_back(0);
-                                cpu.core_percent.push_back({});
-                            }
                             const long long calc_totals = max(0ll, totals - core_old_totals.at(i-1));
                             const long long calc_idles = max(0ll, idles - core_old_idles.at(i-1));
                             core_old_totals.at(i-1) = totals;
@@ -633,13 +636,26 @@ namespace cpu {
                 update_sensors();
 
             return Data {
-                cpu.cpu_percent.at("total"),
+                CpuUsage{
+                    cpu.cpu_percent.at("total"),
+                    cpu.cpu_percent.at("user"),
+                    cpu.cpu_percent.at("nice"),
+                    cpu.cpu_percent.at("system"),
+                    cpu.cpu_percent.at("idle"),
+                    cpu.cpu_percent.at("iowait"),
+                    cpu.cpu_percent.at("irq"),
+                    cpu.cpu_percent.at("softirq"),
+                    cpu.cpu_percent.at("steal"),
+                    cpu.cpu_percent.at("guest"),
+                    cpu.cpu_percent.at("guest_nice")
+                },
                 found_sensors.at( cpu_sensor).temp,
                 CpuAvgLoad{cpu.load_avg[0], cpu.load_avg[1], cpu.load_avg[2]},
                 cpu.core_percent,
                 get_cpu_frequency(),
                 cpu_name,
-                core_count
+                core_count,
+                cpu.critical_temperature
             };
         }
     };

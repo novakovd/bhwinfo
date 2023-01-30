@@ -25,7 +25,7 @@ using std::thread;
 
 void set_interval(auto function, int interval) {
     thread t([&]() {
-        for(;;) {
+        for (;;) {
             std::this_thread::sleep_for(std::chrono::milliseconds(interval));
             function();
         }
@@ -35,14 +35,21 @@ void set_interval(auto function, int interval) {
 }
 
 void inline printf_border() {
-   printf("\n------------------------------------- \n");
+    printf("\n------------------------------------- \n");
 }
 
 template<typename... Args>
-void printf_with_border(const char* fmt , Args... args) {
-   printf(fmt, args...);
+void printf_with_new_line(const char *fmt, Args... args) {
+    printf(fmt, args...);
 
-   printf_border();
+    printf("\n");
+}
+
+template<typename... Args>
+void printf_with_border(const char *fmt, Args... args) {
+    printf(fmt, args...);
+
+    printf_border();
 }
 
 int main() {
@@ -56,30 +63,39 @@ int main() {
         auto freq = cpu_data.get_cpu_frequency();
         auto load_avg = cpu_data.get_average_load();
         auto core_load = cpu_data.get_core_load();
+        auto cpu_usage = cpu_data.get_cpu_usage();
 
-       printf_with_border("%s %f %s", "CPU frequency:", freq.value, freq.units.c_str());
+        printf_with_border("%s %f %s", "CPU frequency:", freq.value, freq.units.c_str());
 
-       printf_with_border("%s %s", "CPU name:", cpu_data.get_cpu_mame().c_str());
+        printf_with_border("%s %s", "CPU name:", cpu_data.get_cpu_mame().c_str());
 
-       printf_with_border("%s %f %f %f", "CPU average load:", load_avg.one_min, load_avg.five_min, load_avg.fifteen_min);
+        printf_with_border("%s %f %f %f", "CPU average load:", load_avg.one_min, load_avg.five_min,
+                           load_avg.fifteen_min);
 
-       printf_with_border("%s %ld%s","CPU temp:", cpu_data.get_cpu_temp(), "°C");
+        printf_with_new_line("%s %ld%s", "CPU temp:", cpu_data.get_cpu_temp(), "°C");
+        printf_with_border("%s %ld%s", "CPU critical temp:", cpu_data.get_cpu_critical_temperature(), "°C");
 
-       printf_with_border("%s %d", "CPU core count:", cpu_data.get_core_count());
+        printf_with_border("%s %d", "CPU core count:", cpu_data.get_core_count());
 
-       printf_with_border("%s %lld%s", "CPU load:", cpu_data.get_cpu_load_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU total:", cpu_usage.total, "%");
+        printf_with_new_line("%s %lld%s", "CPU user:", cpu_usage.user, "%");
+        printf_with_new_line("%s %lld%s", "CPU nice:", cpu_usage.nice, "%");
+        printf_with_new_line("%s %lld%s", "CPU system:", cpu_usage.system, "%");
+        printf_with_new_line("%s %lld%s", "CPU idle:", cpu_usage.idle, "%");
+        printf_with_new_line("%s %lld%s", "CPU iowait:", cpu_usage.iowait, "%");
+        printf_with_new_line("%s %lld%s", "CPU irq:", cpu_usage.irq, "%");
+        printf_with_new_line("%s %lld%s", "CPU softirq:", cpu_usage.softirq, "%");
+        printf_with_new_line("%s %lld%s", "CPU steal:", cpu_usage.steal, "%");
+        printf_with_new_line("%s %lld%s", "CPU guest:", cpu_usage.guest, "%");
+        printf_with_border("%s %lld%s", "CPU guest_nice:", cpu_usage.guest_nice, "%");
 
-       printf("CPU cores load: \n");
+        for (int core_number = 0; core_number < cpu_data.get_core_count(); core_number++) {
+            printf("%s%d: %lld", "Core", core_number, core_load.at(core_number));
 
-        for (int i = 0; i < cpu_data.get_core_count(); i++) {
-            if(i > 0)printf(" ");
-
-           printf("%s%d=%lld", "C", i, core_load.at(i));
-
-            if(i != cpu_data.get_core_count() - 1)printf(" |");
+            if (core_number != cpu_data.get_core_count() - 1) printf("\n");
         }
 
-       printf_border();
+        printf_border();
     }, 1000);
 
     return 0;
