@@ -11,9 +11,7 @@ set(ID ${CMAKE_SOURCE_DIR}/inc/)
 
 project (${PROJECT_NAME})
 
-set(INC, ${ID}/robin_hood.h)
-set(FILES ${SD}/ut.hpp ${SD}/shared.hpp ${SD}/collect.hpp)
-
+set(FILES ${SD}/libhwinfo.hpp)
 
 file(GLOB SOURCE_FILES
         ${FILES}

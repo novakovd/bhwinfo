@@ -17,7 +17,7 @@
 #include <iostream>
 #include "thread"
 #include <chrono>
-#include "src/collect.hpp"
+#include "src/libhwinfo.hpp"
 
 using std::cout;
 using std::endl;
