@@ -103,10 +103,25 @@ int main() {
         mem::Data mem_data = mem_data_collector.collect();
 
         printf_with_border("%s%f GB", "Total RAM amount: ", mem_data.get_total_ram_amount().to_gigabytes());
-        printf_with_border("%s%f GB", "Used RAM amount: ", mem_data.get_used_ram_amount().to_gigabytes());
-        printf_with_border("%s%f GB", "Available RAM amount: ", mem_data.get_available_ram_amount().to_gigabytes());
-        printf_with_border("%s%f GB", "Cached RAM amount: ", mem_data.get_cached_ram_amount().to_gigabytes());
-        printf_with_border("%s%f GB", "Free RAM amount: ", mem_data.get_free_ram_amount().to_gigabytes());
+        printf_with_border(
+                "%s%f GB - %lld %%", "Used RAM amount: ",
+                mem_data.get_used_ram_amount().to_gigabytes(),
+                mem_data.get_used_ram_amount().to_percent()
+        );
+        printf_with_border(
+                "%s%f GB - %lld %%", "Available RAM amount: ",
+                mem_data.get_available_ram_amount().to_gigabytes(),
+                mem_data.get_available_ram_amount().to_percent()
+        );
+        printf_with_border(
+                "%s%f GB - %lld %%", "Cached RAM amount: ",
+                mem_data.get_cached_ram_amount().to_gigabytes(),
+                mem_data.get_cached_ram_amount().to_percent()
+        );
+        printf_with_border(
+                "%s%f GB - %lld %%", "Free RAM amount: ",
+                mem_data.get_free_ram_amount().to_percent()
+        );
     }, 1000);
 
     return 0;

@@ -951,6 +951,34 @@ namespace cpu {
 }
 
 namespace mem {
+    class MemUnit {
+    private:
+        uint64_t bytes;
+        long long percent;
+
+    public:
+        MemUnit(uint64_t bytes, long long percent) {
+            this->bytes = bytes;
+            this->percent = percent;
+        }
+
+        [[nodiscard]] double to_gigabytes() const {
+            return (double)bytes/(1024 * 1024 * 1024);
+        }
+
+        [[nodiscard]] double to_megabytes() const {
+            return (double)bytes/(1024 * 1024);
+        }
+
+        [[nodiscard]] double to_kilobytes() const {
+            return (double)bytes/1024;
+        }
+
+        [[nodiscard]] long long to_percent() const {
+            return this->percent;
+        }
+    };
+
     struct DiskInfo {
         std::filesystem::path dev;
         string name;
@@ -979,39 +1007,17 @@ namespace mem {
         vector<string> disks_order;
     };
 
-    class MemUnit {
-    private:
-        uint64_t bytes;
-
-    public:
-        MemUnit(uint64_t bytes) {
-            this->bytes = bytes;
-        }
-
-        [[nodiscard]] double to_gigabytes() const {
-            return (double)bytes/(1024 * 1024 * 1024);
-        }
-
-        [[nodiscard]] double to_megabytes() const {
-            return (double)bytes/(1024 * 1024);
-        }
-
-        [[nodiscard]] double to_kilobytes() const {
-            return (double)bytes/1024;
-        }
-    };
-
     class StaticValuesAware {
     protected:
-        MemUnit total_ram_amount{0};
+        MemUnit total_ram_amount{0, 100};
     };
 
     class Data : StaticValuesAware {
     private:
-        MemUnit available_ram_amount{0};
-        MemUnit cached_ram_amount{0};
-        MemUnit free_ram_amount{0};
-        MemUnit used_ram_amount{0};
+        MemUnit available_ram_amount{0, 0};
+        MemUnit cached_ram_amount{0, 0};
+        MemUnit free_ram_amount{0, 0};
+        MemUnit used_ram_amount{0, 0};
 
     public:
         Data(
@@ -1054,7 +1060,7 @@ namespace mem {
         DataCollector() {
             shared::init();
 
-            this->total_ram_amount = MemUnit{this->get_total_ram_amount()};
+            this->total_ram_amount = MemUnit{this->get_total_ram_amount(), 100};
             this->old_uptime = ut::system_uptime();
         }
 
@@ -1143,8 +1149,9 @@ namespace mem {
                 }
 
                 has_swap = true;
-            } else
+            } else {
                 has_swap = false;
+            }
 
             //? Get disks stats
             static vector<string> ignore_list;
@@ -1310,7 +1317,9 @@ namespace mem {
 
                 if (has_swap) {
                     mem.disks_order.push_back("swap");
+
                     if (not disks.contains("swap")) disks["swap"] = {"", "swap", "swap"};
+
                     disks.at("swap").total = mem.stats.at("swap_total");
                     disks.at("swap").used = mem.stats.at("swap_used");
                     disks.at("swap").free = mem.stats.at("swap_free");
@@ -1373,10 +1382,10 @@ namespace mem {
 
             return Data {
                 this->total_ram_amount,
-                MemUnit{mem.stats.at("available")},
-                MemUnit{mem.stats.at("cached")},
-                MemUnit{mem.stats.at("free")},
-                MemUnit{mem.stats.at("used")}
+                MemUnit{mem.stats.at("available"), mem.percent.at("available")},
+                MemUnit{mem.stats.at("cached"), mem.percent.at("cached")},
+                MemUnit{mem.stats.at("free"), mem.percent.at("free")},
+                MemUnit{mem.stats.at("used"), mem.percent.at("used")}
             };
         }
     };
