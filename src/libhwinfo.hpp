@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <deque>
 #include <vector>
+#include <sys/statvfs.h>
 
 using std::string;
 using std::cmp_less;
@@ -50,6 +51,44 @@ using namespace std::literals;
 
 namespace fs = std::filesystem;
 namespace rng = std::ranges;
+
+namespace shared {
+    fs::path proc_path, passwd_path;
+    long page_size, clk_tck;
+    fs::path freq_path;
+    bool is_init{};
+
+    inline void init() {
+        if (is_init) return;
+
+        // Shared global variables init
+        proc_path =
+                (fs::is_directory(fs::path("/proc")) and access("/proc", R_OK) != -1) ? "/proc" : "";
+
+        if (proc_path.empty())
+            throw std::runtime_error("Proc filesystem not found or no permission to read from it!");
+
+        passwd_path =
+                (fs::is_regular_file(fs::path("/etc/passwd")) and access("/etc/passwd", R_OK) != -1) ? "/etc/passwd" : "";
+
+        freq_path = "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq";
+
+        page_size = sysconf(_SC_PAGE_SIZE);
+
+        if (page_size <= 0) {
+            page_size = 4096;
+        }
+
+        clk_tck = sysconf(_SC_CLK_TCK);
+
+        if (clk_tck <= 0) {
+            clk_tck = 100;
+        }
+
+        is_init = true;
+    }
+}
+
 
 /**
  * generic utils
@@ -77,6 +116,22 @@ namespace ut {
         std::stringstream ss;
         ss << std::put_time(localtime_r(&in_time_t, &bt), strf.c_str());
         return ss.str();
+    }
+
+    double system_uptime() {
+        string upstr;
+        std::ifstream pread(shared::proc_path / "uptime");
+
+        if (pread.good()) {
+            try {
+                getline(pread, upstr, ' ');
+                pread.close();
+                return stod(upstr);
+            }
+            catch (const std::invalid_argument&) {}
+            catch (const std::out_of_range&) {}
+        }
+        throw std::runtime_error("Failed get uptime from from " + string{shared::proc_path} + "/uptime");
     }
 
     /**
@@ -270,38 +325,6 @@ namespace ut {
         inline void warning(const string& msg) { log_write(2, msg); }
         inline void info(const string& msg) { log_write(3, msg); }
         inline void debug(const string& msg) { log_write(4, msg); }
-    }
-}
-
-namespace shared {
-    fs::path proc_path, passwd_path;
-    long page_size, clk_tck;
-    fs::path freq_path;
-
-    inline void init() {
-        // Shared global variables init
-        proc_path =
-                (fs::is_directory(fs::path("/proc")) and access("/proc", R_OK) != -1) ? "/proc" : "";
-
-        if (proc_path.empty())
-            throw std::runtime_error("Proc filesystem not found or no permission to read from it!");
-
-        passwd_path =
-                (fs::is_regular_file(fs::path("/etc/passwd")) and access("/etc/passwd", R_OK) != -1) ? "/etc/passwd" : "";
-
-        freq_path = "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq";
-
-        page_size = sysconf(_SC_PAGE_SIZE);
-
-        if (page_size <= 0) {
-            page_size = 4096;
-        }
-
-        clk_tck = sysconf(_SC_CLK_TCK);
-
-        if (clk_tck <= 0) {
-            clk_tck = 100;
-        }
     }
 }
 
@@ -922,6 +945,438 @@ namespace cpu {
                 cpu_name,
                 core_count,
                 cpu.critical_temperature
+            };
+        }
+    };
+}
+
+namespace mem {
+    struct DiskInfo {
+        std::filesystem::path dev;
+        string name;
+        string fstype{};                // defaults to ""
+        std::filesystem::path stat{};   // defaults to ""
+        int64_t total{};                // defaults to 0
+        int64_t used{};                 // defaults to 0
+        int64_t free{};                 // defaults to 0
+        int used_percent{};             // defaults to 0
+        int free_percent{};             // defaults to 0
+
+        array<int64_t, 3> old_io = {0, 0, 0};
+        long long io_read = {};
+        long long io_write = {};
+        long long io_activity = {};
+    };
+
+    struct MemInfo {
+        std::unordered_map<string, uint64_t> stats =
+                {{"used", 0}, {"available", 0}, {"cached", 0}, {"free", 0},
+                 {"swap_total", 0}, {"swap_used", 0}, {"swap_free", 0}};
+        std::unordered_map<string, long long> percent =
+                {{"used", {}}, {"available", {}}, {"cached", {}}, {"free", {}},
+                 {"swap_total", {}}, {"swap_used", {}}, {"swap_free", {}}};
+        std::unordered_map<string, DiskInfo> disks;
+        vector<string> disks_order;
+    };
+
+    class MemUnit {
+    private:
+        uint64_t bytes;
+
+    public:
+        MemUnit(uint64_t bytes) {
+            this->bytes = bytes;
+        }
+
+        [[nodiscard]] double to_gigabytes() const {
+            return (double)bytes/(1024 * 1024 * 1024);
+        }
+
+        [[nodiscard]] double to_megabytes() const {
+            return (double)bytes/(1024 * 1024);
+        }
+
+        [[nodiscard]] double to_kilobytes() const {
+            return (double)bytes/1024;
+        }
+    };
+
+    class StaticValuesAware {
+    protected:
+        MemUnit total_ram_amount{0};
+    };
+
+    class Data : StaticValuesAware {
+    private:
+        MemUnit available_ram_amount{0};
+        MemUnit cached_ram_amount{0};
+        MemUnit free_ram_amount{0};
+        MemUnit used_ram_amount{0};
+
+    public:
+        Data(
+            MemUnit total_ram_amount,
+            MemUnit available_ram_amount,
+            MemUnit cached_ram_amount,
+            MemUnit free_ram_amount,
+            MemUnit used_ram_amount
+        ) {
+            this->total_ram_amount = total_ram_amount;
+            this->available_ram_amount = available_ram_amount;
+            this->cached_ram_amount = cached_ram_amount;
+            this->free_ram_amount = free_ram_amount;
+            this->used_ram_amount = used_ram_amount;
+        }
+
+        [[nodiscard]] MemUnit get_total_ram_amount() const {
+            return this->total_ram_amount;
+        }
+
+        [[nodiscard]] MemUnit get_available_ram_amount() const {
+            return this->available_ram_amount;
+        }
+
+        [[nodiscard]] MemUnit get_cached_ram_amount() const {
+            return this->cached_ram_amount;
+        }
+
+        [[nodiscard]] MemUnit get_free_ram_amount() const {
+            return this->free_ram_amount;
+        }
+
+        [[nodiscard]] MemUnit get_used_ram_amount() const {
+            return this->used_ram_amount;
+        }
+    };
+
+    class DataCollector : StaticValuesAware {
+    public:
+        DataCollector() {
+            shared::init();
+
+            this->total_ram_amount = MemUnit{this->get_total_ram_amount()};
+            this->old_uptime = ut::system_uptime();
+        }
+
+    private:
+        bool has_swap{}; // defaults to false
+        vector<string> fstab;
+        fs::file_time_type fstab_time;
+        int disk_ios{}; // defaults to 0
+        vector<string> last_found;
+        MemInfo current_mem{};
+        const array<string, 4> mem_names { "used"s, "available"s, "cached"s, "free"s };
+        const array<string, 2> swap_names { "swap_used"s, "swap_free"s };
+        double old_uptime;
+
+        uint64_t get_total_ram_amount() {
+            std::ifstream mem_info(shared::proc_path / "meminfo");
+            int64_t totalMem;
+
+            if (mem_info.good()) {
+                mem_info.ignore(ut::maxStreamSize, ':');
+                mem_info >> totalMem;
+                totalMem <<= 10;
+            }
+
+            if (not mem_info.good() or totalMem == 0)
+                throw std::runtime_error("Could not get total memory size from /proc/meminfo");
+
+            return totalMem;
+        }
+
+    public:
+        Data collect() {
+            auto totalMem = this->get_total_ram_amount();
+            auto &mem = current_mem;
+
+            mem.stats.at("swap_total") = 0;
+
+            //? Read memory info from /proc/meminfo
+            std::ifstream meminfo(shared::proc_path / "meminfo");
+
+            if (meminfo.good()) {
+                bool got_avail = false;
+
+                for (string label; meminfo.peek() != 'D' and meminfo >> label;) {
+                    if (label == "MemFree:") {
+                        meminfo >> mem.stats.at("free");
+                        mem.stats.at("free") <<= 10;
+                    } else if (label == "MemAvailable:") {
+                        meminfo >> mem.stats.at("available");
+                        mem.stats.at("available") <<= 10;
+                        got_avail = true;
+                    } else if (label == "Cached:") {
+                        meminfo >> mem.stats.at("cached");
+                        mem.stats.at("cached") <<= 10;
+                    } else if (label == "SwapTotal:") {
+                        meminfo >> mem.stats.at("swap_total");
+                        mem.stats.at("swap_total") <<= 10;
+                    } else if (label == "SwapFree:") {
+                        meminfo >> mem.stats.at("swap_free");
+                        mem.stats.at("swap_free") <<= 10;
+                        break;
+                    }
+
+                    meminfo.ignore(ut::maxStreamSize, '\n');
+                }
+                if (not got_avail) mem.stats.at("available") = mem.stats.at("free") + mem.stats.at("cached");
+                mem.stats.at("used") = totalMem - (mem.stats.at("available") <= totalMem ? mem.stats.at("available")
+                                                                                         : mem.stats.at("free"));
+
+                if (mem.stats.at("swap_total") > 0)
+                    mem.stats.at("swap_used") = mem.stats.at("swap_total") - mem.stats.at("swap_free");
+            } else {
+                throw std::runtime_error("Failed to read /proc/meminfo");
+            }
+
+            meminfo.close();
+
+            //? Calculate percentages
+            for (const auto &name: mem_names) {
+                mem.percent.at(name) = round((double) mem.stats.at(name) * 100 / totalMem);
+            }
+
+            if (mem.stats.at("swap_total") > 0) {
+                for (const auto &name: swap_names) {
+                    mem.percent.at(name) = round((double) mem.stats.at(name) * 100 / mem.stats.at("swap_total"));
+                }
+
+                has_swap = true;
+            } else
+                has_swap = false;
+
+            //? Get disks stats
+            static vector<string> ignore_list;
+            double uptime = ut::system_uptime();
+
+            try {
+                bool filter_exclude = false;
+                auto &disks = mem.disks;
+                std::ifstream diskread;
+
+                //? Get disk list to use from fstab if enabled
+                if (fs::last_write_time("/etc/fstab") != fstab_time) {
+                    fstab.clear();
+                    fstab_time = fs::last_write_time("/etc/fstab");
+                    diskread.open("/etc/fstab");
+                    if (diskread.good()) {
+                        for (string instr; diskread >> instr;) {
+                            if (not instr.starts_with('#')) {
+                                diskread >> instr;
+
+                                if (not ut::type::is_in(instr, "none", "swap")) fstab.push_back(instr);
+                            }
+
+                            diskread.ignore(ut::maxStreamSize, '\n');
+                        }
+                    } else {
+                        throw std::runtime_error("Failed to read /etc/fstab");
+                    }
+
+                    diskread.close();
+                }
+
+                //? Get mounts from /etc/mtab or /proc/self/mounts
+                diskread.open((fs::exists("/etc/mtab") ? fs::path("/etc/mtab") : shared::proc_path / "self/mounts"));
+
+                if (diskread.good()) {
+                    vector<string> found;
+                    found.reserve(last_found.size());
+                    string dev, mountpoint, fstype;
+
+                    while (not diskread.eof()) {
+                        std::error_code ec;
+                        diskread >> dev >> mountpoint >> fstype;
+                        diskread.ignore(ut::maxStreamSize, '\n');
+
+                        if (ut::vec::contains(ignore_list, mountpoint) or ut::vec::contains(found, mountpoint)) continue;
+
+//                        if ((not use_fstab and not only_physical)
+//                            or (use_fstab and v_contains(fstab, mountpoint))
+//                            or (not use_fstab and only_physical and v_contains(fstypes, fstype))) {
+//
+//                            found.push_back(mountpoint);
+//
+//                            //? Save mountpoint, name, fstype, dev path and path to /sys/block stat file
+//                            if (not disks.contains(mountpoint)) {
+//                                disks[mountpoint] = disk_info{fs::canonical(dev, ec),
+//                                                              fs::path(mountpoint).filename(), fstype};
+//                                if (disks.at(mountpoint).dev.empty()) disks.at(mountpoint).dev = dev;
+//#ifdef SNAPPED
+//                                if (mountpoint == "/mnt") disks.at(mountpoint).name = "root";
+//#endif
+//                                if (disks.at(mountpoint).name.empty())
+//                                    disks.at(mountpoint).name = (mountpoint == "/" ? "root" : mountpoint);
+//                                string devname = disks.at(mountpoint).dev.filename();
+//                                int c = 0;
+//                                while (devname.size() >= 2) {
+//                                    if (fs::exists("/sys/block/" + devname + "/stat", ec) and
+//                                        access(string("/sys/block/" + devname + "/stat").c_str(), R_OK) == 0) {
+//                                        if (c > 0 and fs::exists("/sys/block/" + devname + '/' +
+//                                                                 disks.at(mountpoint).dev.filename().string() +
+//                                                                 "/stat", ec))
+//                                            disks.at(mountpoint).stat = "/sys/block/" + devname + '/' + disks.at(
+//                                                    mountpoint).dev.filename().string() + "/stat";
+//                                        else
+//                                            disks.at(mountpoint).stat = "/sys/block/" + devname + "/stat";
+//                                        break;
+//                                        //? Set ZFS stat filepath
+//                                    } else if (fstype == "zfs") {
+//                                        disks.at(mountpoint).stat = get_zfs_stat_file(dev, zfs_dataset_name_start,
+//                                                                                      zfs_hide_datasets);
+//                                        if (disks.at(mountpoint).stat.empty()) {
+//                                            Logger::debug("Failed to get ZFS stat file for device " + dev);
+//                                        }
+//                                        break;
+//                                    }
+//                                    devname.resize(devname.size() - 1);
+//                                    c++;
+//                                }
+//                            }
+//
+//                            //? If zfs_hide_datasets option was switched, refresh stat filepath
+//                            if (fstype == "zfs" && ((zfs_hide_datasets && !is_directory(disks.at(mountpoint).stat))
+//                                                    || (!zfs_hide_datasets &&
+//                                                        is_directory(disks.at(mountpoint).stat)))) {
+//                                disks.at(mountpoint).stat = get_zfs_stat_file(dev, zfs_dataset_name_start,
+//                                                                              zfs_hide_datasets);
+//                                if (disks.at(mountpoint).stat.empty()) {
+//                                    Logger::debug("Failed to get ZFS stat file for device " + dev);
+//                                }
+//                            }
+//                        }
+                    }
+
+                    //? Remove disks no longer mounted or filtered out
+                    if (has_swap) found.push_back("swap");
+
+                    for (auto it = disks.begin(); it != disks.end();) {
+                        if (not ut::vec::contains(found, it->first))
+                            it = disks.erase(it);
+                        else
+                            it++;
+                    }
+
+                    last_found = std::move(found);
+                } else {
+                    throw std::runtime_error("Failed to get mounts from /etc/mtab and /proc/self/mounts");
+                }
+
+                diskread.close();
+
+                //? Get disk/partition stats
+                bool new_ignored = false;
+                for (auto &[mountpoint, disk]: disks) {
+                    if (std::error_code ec; not fs::exists(mountpoint, ec)
+                        or ut::vec::contains(ignore_list, mountpoint)
+                    ) {
+                        continue;
+                    }
+
+                    struct statvfs64 vfs;
+
+                    if (statvfs64(mountpoint.c_str(), &vfs) < 0) {
+                        ut::logger::warning("Failed to get disk/partition stats for mount \"" + mountpoint +
+                                        "\" with statvfs64 error code: " + std::to_string(errno) + ". Ignoring...");
+                        ignore_list.push_back(mountpoint);
+
+                        new_ignored = true;
+
+                        continue;
+                    }
+
+                    disk.total = vfs.f_blocks * vfs.f_frsize;
+                    disk.free = vfs.f_bavail * vfs.f_frsize;
+                    disk.used = disk.total - disk.free;
+                    disk.used_percent = round((double) disk.used * 100 / disk.total);
+                    disk.free_percent = 100 - disk.used_percent;
+                }
+
+                //? Remove any problematic disks added to the ignore_list
+                if (new_ignored) {
+                    for (auto it = disks.begin(); it != disks.end();) {
+                        if (ut::vec::contains(ignore_list, it->first))
+                            it = disks.erase(it);
+                        else
+                            it++;
+                    }
+                }
+
+                //? Setup disks order in UI and add swap if enabled
+                mem.disks_order.clear();
+
+                if (disks.contains("/")) mem.disks_order.push_back("/");
+
+                if (has_swap) {
+                    mem.disks_order.push_back("swap");
+                    if (not disks.contains("swap")) disks["swap"] = {"", "swap", "swap"};
+                    disks.at("swap").total = mem.stats.at("swap_total");
+                    disks.at("swap").used = mem.stats.at("swap_used");
+                    disks.at("swap").free = mem.stats.at("swap_free");
+                    disks.at("swap").used_percent = mem.percent.at("swap_used");
+                    disks.at("swap").free_percent = mem.percent.at("swap_free");
+                }
+                for (const auto &name: last_found)
+
+                if (not ut::type::is_in(name, "/", "swap")) mem.disks_order.push_back(name);
+
+                //? Get disks IO
+                int64_t sectors_read, sectors_write, io_ticks, io_ticks_temp;
+                disk_ios = 0;
+                for (auto &[ignored, disk]: disks) {
+                    if (disk.stat.empty() or access(disk.stat.c_str(), R_OK) != 0) continue;
+
+                    diskread.open(disk.stat);
+                    if (diskread.good()) {
+                        disk_ios++;
+
+                        for (int i = 0; i < 2; i++) {
+                            diskread >> std::ws;
+                            diskread.ignore(ut::maxStreamSize, ' ');
+                        }
+                        diskread >> sectors_read;
+
+                        disk.io_read = max((int64_t) 0, (sectors_read - disk.old_io.at(0)) * 512);
+                        disk.old_io.at(0) = sectors_read;
+
+                        for (int i = 0; i < 3; i++) {
+                            diskread >> std::ws;
+                            diskread.ignore(ut::maxStreamSize, ' ');
+                        }
+
+                        diskread >> sectors_write;
+
+                        disk.io_write = max((int64_t) 0, (sectors_write - disk.old_io.at(1)) * 512);
+                        disk.old_io.at(1) = sectors_write;
+
+                        for (int i = 0; i < 2; i++) {
+                            diskread >> std::ws;
+                            diskread.ignore(ut::maxStreamSize, ' ');
+                        }
+                        diskread >> io_ticks;
+                        disk.io_activity = clamp((long) round(
+                                                         (double) (io_ticks - disk.old_io.at(2)) / (uptime - old_uptime) / 10), 0l,
+                                                 100l);
+                        disk.old_io.at(2) = io_ticks;
+                    } else {
+                        ut::logger::debug("Error in Mem::collect() : when opening " + string{disk.stat});
+                    }
+
+                    diskread.close();
+                }
+                old_uptime = uptime;
+            }
+            catch (const std::exception &e) {
+                ut::logger::warning("Error in Mem::collect() : " + string{e.what()});
+            }
+
+            return Data {
+                this->total_ram_amount,
+                MemUnit{mem.stats.at("available")},
+                MemUnit{mem.stats.at("cached")},
+                MemUnit{mem.stats.at("free")},
+                MemUnit{mem.stats.at("used")}
             };
         }
     };

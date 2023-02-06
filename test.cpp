@@ -54,9 +54,12 @@ void printf_with_border(const char *fmt, Args... args) {
 
 int main() {
     auto cpu_data_collector = cpu::DataCollector{};
+    auto mem_data_collector = mem::DataCollector{};
 
     set_interval([&]() {
         system("clear");
+
+        printf("**************************** CPU INFO ****************************\n");
 
         cpu::Data cpu_data = cpu_data_collector.collect();
 
@@ -95,7 +98,15 @@ int main() {
             if (core_number != cpu_data.get_core_count() - 1) printf("\n");
         }
 
-        printf_border();
+        printf("\n**************************** MEM INFO ****************************\n");
+
+        mem::Data mem_data = mem_data_collector.collect();
+
+        printf_with_border("%s%f GB", "Total RAM amount: ", mem_data.get_total_ram_amount().to_gigabytes());
+        printf_with_border("%s%f GB", "Used RAM amount: ", mem_data.get_used_ram_amount().to_gigabytes());
+        printf_with_border("%s%f GB", "Available RAM amount: ", mem_data.get_available_ram_amount().to_gigabytes());
+        printf_with_border("%s%f GB", "Cached RAM amount: ", mem_data.get_cached_ram_amount().to_gigabytes());
+        printf_with_border("%s%f GB", "Free RAM amount: ", mem_data.get_free_ram_amount().to_gigabytes());
     }, 1000);
 
     return 0;
