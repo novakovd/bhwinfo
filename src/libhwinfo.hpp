@@ -335,9 +335,9 @@ namespace cpu {
         string units{};
 
     public:
-        CpuFrequency(double value, string  units) : value(value), units(std::move(units)) {}
+        CpuFrequency(const double& value, string units) : value(value), units(std::move(units)) {}
 
-        [[nodiscard]] double get_value() const {
+        [[nodiscard]] const double& get_value() const {
             return value;
         }
 
@@ -354,23 +354,23 @@ namespace cpu {
 
     public:
         CpuAvgLoad(
-            double one_min,
-            double five_min,
-            double fifteen_min
+            const double& one_min,
+            const double& five_min,
+            const double& fifteen_min
         ) :
         one_min(one_min),
         five_min(five_min),
         fifteen_min(fifteen_min) {}
 
-        [[nodiscard]] double get_one_min() const {
+        [[nodiscard]] const double& get_one_min() const {
             return one_min;
         }
 
-        [[nodiscard]] double get_five_min() const {
+        [[nodiscard]] const double& get_five_min() const {
             return five_min;
         }
 
-        [[nodiscard]] double get_fifteen_min() const {
+        [[nodiscard]] const double& get_fifteen_min() const {
             return fifteen_min;
         }
     };
@@ -390,17 +390,17 @@ namespace cpu {
 
     public:
         CpuUsage(
-            long long int total_percent,
-            long long int user_percent,
-            long long int nice_percent,
-            long long int system_percent,
-            long long int idle_percent,
-            long long int iowait_percent,
-            long long int irq_percent,
-            long long int softirq_percent,
-            long long int steal_percent,
-            long long int guest_percent,
-            long long int guest_nice_percent
+            const long long int& total_percent,
+            const long long int& user_percent,
+            const long long int& nice_percent,
+            const long long int& system_percent,
+            const long long int& idle_percent,
+            const long long int& iowait_percent,
+            const long long int& irq_percent,
+            const long long int& softirq_percent,
+            const long long int& steal_percent,
+            const long long int& guest_percent,
+            const long long int& guest_nice_percent
         ) :
         total_percent(total_percent),
         user_percent(user_percent),
@@ -415,47 +415,47 @@ namespace cpu {
         guest_nice_percent(
         guest_nice_percent) {}
 
-        [[nodiscard]] long long int get_total_percent() const {
+        [[nodiscard]] const long long int& get_total_percent() const {
             return total_percent;
         }
 
-        [[nodiscard]] long long int get_user_percent() const {
+        [[nodiscard]] const long long int& get_user_percent() const {
             return user_percent;
         }
 
-        [[nodiscard]] long long int get_nice_percent() const {
+        [[nodiscard]] const long long int& get_nice_percent() const {
             return nice_percent;
         }
 
-        [[nodiscard]] long long int get_system_percent() const {
+        [[nodiscard]] const long long int& get_system_percent() const {
             return system_percent;
         }
 
-        [[nodiscard]] long long int get_idle_percent() const {
+        [[nodiscard]] const long long int& get_idle_percent() const {
             return idle_percent;
         }
 
-        [[nodiscard]] long long int get_iowait_percent() const {
+        [[nodiscard]] const long long int& get_iowait_percent() const {
             return iowait_percent;
         }
 
-        [[nodiscard]] long long int get_irq_percent() const {
+        [[nodiscard]] const long long int& get_irq_percent() const {
             return irq_percent;
         }
 
-        [[nodiscard]] long long int get_softirq_percent() const {
+        [[nodiscard]] const long long int& get_softirq_percent() const {
             return softirq_percent;
         }
 
-        [[nodiscard]] long long int get_steal_percent() const {
+        [[nodiscard]] const long long int& get_steal_percent() const {
             return steal_percent;
         }
 
-        [[nodiscard]] long long int get_guest_percent() const {
+        [[nodiscard]] const long long int& get_guest_percent() const {
             return guest_percent;
         }
 
-        [[nodiscard]] long long int get_guest_nice_percent() const {
+        [[nodiscard]] const long long int& get_guest_nice_percent() const {
             return guest_nice_percent;
         }
     };
@@ -477,54 +477,54 @@ namespace cpu {
 
     public:
         Data(
-            CpuUsage cpu_usage,
-            int64_t cpu_temp,
-            CpuAvgLoad cpu_load_avg,
-            vector<long long> core_load,
-            CpuFrequency cpu_frequency,
-            string cpu_name,
-            int core_count,
-            long long critical_temperature
+            const CpuUsage& cpu_usage,
+            const int64_t& cpu_temp,
+            const CpuAvgLoad& cpu_load_avg,
+            const vector<long long>& core_load,
+            const CpuFrequency& cpu_frequency,
+            const string& cpu_name,
+            const int& core_count,
+            const long long& critical_temperature
         ) {
             this->cpu_usage = cpu_usage;
             this->cpu_temp = cpu_temp;
             this->cpu_load_avg = cpu_load_avg;
-            this->core_load = std::move(core_load);
-            this->cpu_frequency = std::move(cpu_frequency);
-            this->cpu_name = std::move(cpu_name);
+            this->core_load = core_load;
+            this->cpu_frequency = cpu_frequency;
+            this->cpu_name = cpu_name;
             this->core_count = core_count;
             this->critical_temperature = critical_temperature;
         }
 
-        [[nodiscard]] CpuUsage get_cpu_usage() const {
+        [[nodiscard]] const CpuUsage& get_cpu_usage() const {
             return this->cpu_usage;
         }
 
-        [[nodiscard]] int64_t get_cpu_temp() const {
+        [[nodiscard]] const int64_t& get_cpu_temp() const {
             return this->cpu_temp;
         }
 
-        [[nodiscard]] CpuAvgLoad get_average_load() {
+        [[nodiscard]] const CpuAvgLoad& get_average_load() {
             return this->cpu_load_avg;
         }
 
-        [[nodiscard]] vector<long long> get_core_load() {
+        [[nodiscard]] const vector<long long>& get_core_load() {
             return this->core_load;
         }
 
-        [[nodiscard]] CpuFrequency get_cpu_frequency() {
+        [[nodiscard]] const CpuFrequency& get_cpu_frequency() {
             return this->cpu_frequency;
         }
 
-        [[nodiscard]] string get_cpu_mame() {
+        [[nodiscard]] const string& get_cpu_mame() {
             return this->cpu_name;
         }
 
-        [[nodiscard]] int get_core_count() const {
+        [[nodiscard]] const int& get_core_count() const {
             return this->core_count;
         };
 
-        [[nodiscard]] long long get_cpu_critical_temperature() const {
+        [[nodiscard]] const long long& get_cpu_critical_temperature() const {
             return this->critical_temperature;
         }
     };
@@ -1060,7 +1060,7 @@ namespace mem {
         uint64_t bytes;
 
     public:
-        explicit GenericMemUnit(uint64_t bytes) : bytes(bytes) {}
+        explicit GenericMemUnit(const uint64_t& bytes) : bytes(bytes) {}
 
         [[nodiscard]] double to_gigabytes() const {
             return (double)this->bytes/(1024 * 1024 * 1024);
@@ -1080,9 +1080,9 @@ namespace mem {
         long long percent;
 
     public:
-        RamUnit(uint64_t bytes, long long int percent) : GenericMemUnit(bytes), percent(percent) {}
+        RamUnit(const uint64_t& bytes, const long long int& percent) : GenericMemUnit(bytes), percent(percent) {}
 
-        [[nodiscard]] long long to_percent() const {
+        [[nodiscard]] const long long& to_percent() const {
             return this->percent;
         }
     };
@@ -1105,26 +1105,26 @@ namespace mem {
             const GenericMemUnit &total,
             const GenericMemUnit &used,
             const GenericMemUnit &free,
-            int usedPercent,
-            int freePercent,
-            string& handle,
-            string& fs_type,
-            long long io_read,
-            long long io_write,
-            long long io_activity,
-            fs::path& path
+            const int& usedPercent,
+            const int& freePercent,
+            string handle,
+            string fs_type,
+            const long long& io_read,
+            const long long& io_write,
+            const long long& io_activity,
+            fs::path path
         ) :
         total(total),
         used(used),
         free(free),
         used_percent(usedPercent),
         free_percent(freePercent),
-        handle(handle),
-        fs_type(fs_type),
+        handle(std::move(handle)),
+        fs_type(std::move(fs_type)),
         io_read(io_read),
         io_write(io_write),
         io_activity(io_activity),
-        path(path) {}
+        path(std::move(path)) {}
 
         [[nodiscard]] const GenericMemUnit& get_total() const {
             return this->total;
@@ -1138,11 +1138,11 @@ namespace mem {
             return this->free;
         }
 
-        [[nodiscard]] int get_used_percent() const {
+        [[nodiscard]] const int& get_used_percent() const {
             return this->used_percent;
         }
 
-        [[nodiscard]] int get_free_percent() const {
+        [[nodiscard]] const int& get_free_percent() const {
             return this->free_percent;
         }
 
@@ -1154,15 +1154,15 @@ namespace mem {
             return this->fs_type;
         }
 
-        [[nodiscard]] long long int get_io_read() const {
+        [[nodiscard]] const long long int& get_io_read() const {
             return this->io_read;
         }
 
-        [[nodiscard]] long long int get_io_write() const {
+        [[nodiscard]] const long long int& get_io_write() const {
             return this->io_write;
         }
 
-        [[nodiscard]] long long int get_io_activity() const {
+        [[nodiscard]] const long long int& get_io_activity() const {
             return this->io_activity;
         }
 
@@ -1555,7 +1555,6 @@ namespace mem {
                 ut::logger::warning("Error in Mem::collect() : " + string{e.what()});
             }
 
-            //TODO REFACTOR
             vector<StorageUnit> dsk;
 
             for(auto& d: mem.disks) {
