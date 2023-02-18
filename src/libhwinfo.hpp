@@ -951,107 +951,174 @@ namespace cpu {
 }
 
 namespace mem {
-    class MemUnit {
+    class GenericMemUnit {
     private:
         uint64_t bytes;
-        long long percent;
 
     public:
-        MemUnit(uint64_t bytes, long long percent) {
-            this->bytes = bytes;
-            this->percent = percent;
-        }
+        explicit GenericMemUnit(uint64_t bytes) : bytes(bytes) {}
 
         [[nodiscard]] double to_gigabytes() const {
-            return (double)bytes/(1024 * 1024 * 1024);
+            return (double)this->bytes/(1024 * 1024 * 1024);
         }
 
         [[nodiscard]] double to_megabytes() const {
-            return (double)bytes/(1024 * 1024);
+            return (double)this->bytes/(1024 * 1024);
         }
 
         [[nodiscard]] double to_kilobytes() const {
-            return (double)bytes/1024;
+            return (double)this->bytes/1024;
         }
+    };
+
+    class RamUnit : public GenericMemUnit {
+    private:
+        long long percent;
+
+    public:
+        RamUnit(uint64_t bytes, long long int percent) : GenericMemUnit(bytes), percent(percent) {}
 
         [[nodiscard]] long long to_percent() const {
             return this->percent;
         }
     };
 
-    struct DiskInfo {
-        std::filesystem::path dev;
-        string name;
-        string fstype{};                // defaults to ""
-        std::filesystem::path stat{};   // defaults to ""
-        int64_t total{};                // defaults to 0
-        int64_t used{};                 // defaults to 0
-        int64_t free{};                 // defaults to 0
-        int used_percent{};             // defaults to 0
-        int free_percent{};             // defaults to 0
+    class StorageUnit {
+        GenericMemUnit total;
+        GenericMemUnit used;
+        GenericMemUnit free;
+        int used_percent;
+        int free_percent;
+        string handle;
+        string fs_type;
+        long long io_read;
+        long long io_write;
+        long long io_activity;
+        fs::path path;
 
-        array<int64_t, 3> old_io = {0, 0, 0};
-        long long io_read = {};
-        long long io_write = {};
-        long long io_activity = {};
-    };
+    public:
+        StorageUnit(
+            const GenericMemUnit &total,
+            const GenericMemUnit &used,
+            const GenericMemUnit &free,
+            int usedPercent,
+            int freePercent,
+            string& handle,
+            string& fs_type,
+            long long io_read,
+            long long io_write,
+            long long io_activity,
+            fs::path& path
+        ) :
+        total(total),
+        used(used),
+        free(free),
+        used_percent(usedPercent),
+        free_percent(freePercent),
+        handle(handle),
+        fs_type(fs_type),
+        io_read(io_read),
+        io_write(io_write),
+        io_activity(io_activity),
+        path(path) {}
 
-    struct MemInfo {
-        std::unordered_map<string, uint64_t> stats =
-                {{"used", 0}, {"available", 0}, {"cached", 0}, {"free", 0},
-                 {"swap_total", 0}, {"swap_used", 0}, {"swap_free", 0}};
-        std::unordered_map<string, long long> percent =
-                {{"used", {}}, {"available", {}}, {"cached", {}}, {"free", {}},
-                 {"swap_total", {}}, {"swap_used", {}}, {"swap_free", {}}};
-        std::unordered_map<string, DiskInfo> disks;
-        vector<string> disks_order;
+        [[nodiscard]] const GenericMemUnit& get_total() const {
+            return this->total;
+        }
+
+        [[nodiscard]] const GenericMemUnit& get_used() const {
+            return this->used;
+        }
+
+        [[nodiscard]] const GenericMemUnit& get_free() const {
+            return this->free;
+        }
+
+        [[nodiscard]] int get_used_percent() const {
+            return this->used_percent;
+        }
+
+        [[nodiscard]] int get_free_percent() const {
+            return this->free_percent;
+        }
+
+        [[nodiscard]] const string& get_handle() const {
+            return this->handle;
+        }
+
+        [[nodiscard]] const string& get_fs_type() const {
+            return this->fs_type;
+        }
+
+        [[nodiscard]] long long int get_io_read() const {
+            return this->io_read;
+        }
+
+        [[nodiscard]] long long int get_io_write() const {
+            return this->io_write;
+        }
+
+        [[nodiscard]] long long int get_io_activity() const {
+            return this->io_activity;
+        }
+
+        [[nodiscard]] const fs::path& get_path() const {
+            return this->path;
+        }
     };
 
     class StaticValuesAware {
     protected:
-        MemUnit total_ram_amount{0, 100};
+        GenericMemUnit total_ram_amount{0};
     };
 
     class Data : StaticValuesAware {
     private:
-        MemUnit available_ram_amount{0, 0};
-        MemUnit cached_ram_amount{0, 0};
-        MemUnit free_ram_amount{0, 0};
-        MemUnit used_ram_amount{0, 0};
+        RamUnit available_ram_amount{0, 0};
+        RamUnit cached_ram_amount{0, 0};
+        RamUnit free_ram_amount{0, 0};
+        RamUnit used_ram_amount{0, 0};
+        vector<StorageUnit> disks;
 
     public:
         Data(
-            MemUnit total_ram_amount,
-            MemUnit available_ram_amount,
-            MemUnit cached_ram_amount,
-            MemUnit free_ram_amount,
-            MemUnit used_ram_amount
-        ) {
+            const GenericMemUnit total_ram_amount,
+            const RamUnit& available_ram_amount,
+            const RamUnit& cached_ram_amount,
+            const RamUnit& free_ram_amount,
+            const RamUnit& used_ram_amount,
+            const vector<StorageUnit>& disks
+        ) :
+        available_ram_amount(available_ram_amount),
+        cached_ram_amount(cached_ram_amount),
+        free_ram_amount(free_ram_amount),
+        used_ram_amount(used_ram_amount),
+        disks(disks) {
             this->total_ram_amount = total_ram_amount;
-            this->available_ram_amount = available_ram_amount;
-            this->cached_ram_amount = cached_ram_amount;
-            this->free_ram_amount = free_ram_amount;
-            this->used_ram_amount = used_ram_amount;
         }
 
-        [[nodiscard]] MemUnit get_total_ram_amount() const {
+        [[nodiscard]] const GenericMemUnit& get_total_ram_amount() const {
             return this->total_ram_amount;
         }
 
-        [[nodiscard]] MemUnit get_available_ram_amount() const {
+        [[nodiscard]] const RamUnit& get_available_ram_amount() const {
             return this->available_ram_amount;
         }
 
-        [[nodiscard]] MemUnit get_cached_ram_amount() const {
+        [[nodiscard]] const RamUnit& get_cached_ram_amount() const {
             return this->cached_ram_amount;
         }
 
-        [[nodiscard]] MemUnit get_free_ram_amount() const {
+        [[nodiscard]] const RamUnit& get_free_ram_amount() const {
             return this->free_ram_amount;
         }
 
-        [[nodiscard]] MemUnit get_used_ram_amount() const {
+        [[nodiscard]] const RamUnit& get_used_ram_amount() const {
             return this->used_ram_amount;
+        }
+
+        [[nodiscard]] const vector<StorageUnit>& get_disks() const {
+            return this->disks;
         }
     };
 
@@ -1060,11 +1127,39 @@ namespace mem {
         DataCollector() {
             shared::init();
 
-            this->total_ram_amount = MemUnit{this->get_total_ram_amount(), 100};
+            this->total_ram_amount = GenericMemUnit{this->get_total_ram_amount()};
             this->old_uptime = ut::system_uptime();
         }
 
     private:
+        struct DiskInfo {
+            std::filesystem::path dev;
+            string name;
+            string fstype{};
+            std::filesystem::path stat{};
+            uint64_t total{};
+            uint64_t used{};
+            uint64_t free{};
+            int used_percent{};
+            int free_percent{};
+
+            array<uint64_t, 3> old_io = {0, 0, 0};
+            long long io_read = {};
+            long long io_write = {};
+            long long io_activity = {};
+        };
+
+        struct MemInfo {
+            std::unordered_map<string, uint64_t> stats =
+                    {{"used", 0}, {"available", 0}, {"cached", 0}, {"free", 0},
+                     {"swap_total", 0}, {"swap_used", 0}, {"swap_free", 0}};
+            std::unordered_map<string, long long> percent =
+                    {{"used", {}}, {"available", {}}, {"cached", {}}, {"free", {}},
+                     {"swap_total", {}}, {"swap_used", {}}, {"swap_free", {}}};
+            std::unordered_map<string, DiskInfo> disks;
+            vector<string> disks_order;
+        };
+
         bool has_swap{}; // defaults to false
         vector<string> fstab;
         fs::file_time_type fstab_time;
@@ -1162,27 +1257,22 @@ namespace mem {
                 auto &disks = mem.disks;
                 std::ifstream diskread;
 
-                //? Get disk list to use from fstab if enabled
-                if (fs::last_write_time("/etc/fstab") != fstab_time) {
-                    fstab.clear();
-                    fstab_time = fs::last_write_time("/etc/fstab");
-                    diskread.open("/etc/fstab");
-                    if (diskread.good()) {
-                        for (string instr; diskread >> instr;) {
-                            if (not instr.starts_with('#')) {
-                                diskread >> instr;
+                //? Get list of "real" filesystems from /proc/filesystems
+                vector<string> fstypes;
 
-                                if (not ut::type::is_in(instr, "none", "swap")) fstab.push_back(instr);
-                            }
-
-                            diskread.ignore(ut::maxStreamSize, '\n');
-                        }
-                    } else {
-                        throw std::runtime_error("Failed to read /etc/fstab");
+                diskread.open(shared::proc_path / "filesystems");
+                if (diskread.good()) {
+                    for (string fstype; diskread >> fstype;) {
+                        if (not ut::type::is_in(fstype, "nodev", "squashfs", "nullfs", "zfs", "wslfs", "drvfs"))
+                            fstypes.push_back(fstype);
+                        diskread.ignore(ut::maxStreamSize, '\n');
                     }
-
-                    diskread.close();
                 }
+                else {
+                    throw std::runtime_error("Failed to read /proc/filesystems");
+                }
+
+                diskread.close();
 
                 //? Get mounts from /etc/mtab or /proc/self/mounts
                 diskread.open((fs::exists("/etc/mtab") ? fs::path("/etc/mtab") : shared::proc_path / "self/mounts"));
@@ -1199,60 +1289,39 @@ namespace mem {
 
                         if (ut::vec::contains(ignore_list, mountpoint) or ut::vec::contains(found, mountpoint)) continue;
 
-//                        if ((not use_fstab and not only_physical)
-//                            or (use_fstab and v_contains(fstab, mountpoint))
-//                            or (not use_fstab and only_physical and v_contains(fstypes, fstype))) {
-//
-//                            found.push_back(mountpoint);
-//
-//                            //? Save mountpoint, name, fstype, dev path and path to /sys/block stat file
-//                            if (not disks.contains(mountpoint)) {
-//                                disks[mountpoint] = disk_info{fs::canonical(dev, ec),
-//                                                              fs::path(mountpoint).filename(), fstype};
-//                                if (disks.at(mountpoint).dev.empty()) disks.at(mountpoint).dev = dev;
-//#ifdef SNAPPED
-//                                if (mountpoint == "/mnt") disks.at(mountpoint).name = "root";
-//#endif
-//                                if (disks.at(mountpoint).name.empty())
-//                                    disks.at(mountpoint).name = (mountpoint == "/" ? "root" : mountpoint);
-//                                string devname = disks.at(mountpoint).dev.filename();
-//                                int c = 0;
-//                                while (devname.size() >= 2) {
-//                                    if (fs::exists("/sys/block/" + devname + "/stat", ec) and
-//                                        access(string("/sys/block/" + devname + "/stat").c_str(), R_OK) == 0) {
-//                                        if (c > 0 and fs::exists("/sys/block/" + devname + '/' +
-//                                                                 disks.at(mountpoint).dev.filename().string() +
-//                                                                 "/stat", ec))
-//                                            disks.at(mountpoint).stat = "/sys/block/" + devname + '/' + disks.at(
-//                                                    mountpoint).dev.filename().string() + "/stat";
-//                                        else
-//                                            disks.at(mountpoint).stat = "/sys/block/" + devname + "/stat";
-//                                        break;
-//                                        //? Set ZFS stat filepath
-//                                    } else if (fstype == "zfs") {
-//                                        disks.at(mountpoint).stat = get_zfs_stat_file(dev, zfs_dataset_name_start,
-//                                                                                      zfs_hide_datasets);
-//                                        if (disks.at(mountpoint).stat.empty()) {
-//                                            Logger::debug("Failed to get ZFS stat file for device " + dev);
-//                                        }
-//                                        break;
-//                                    }
-//                                    devname.resize(devname.size() - 1);
-//                                    c++;
-//                                }
-//                            }
-//
-//                            //? If zfs_hide_datasets option was switched, refresh stat filepath
-//                            if (fstype == "zfs" && ((zfs_hide_datasets && !is_directory(disks.at(mountpoint).stat))
-//                                                    || (!zfs_hide_datasets &&
-//                                                        is_directory(disks.at(mountpoint).stat)))) {
-//                                disks.at(mountpoint).stat = get_zfs_stat_file(dev, zfs_dataset_name_start,
-//                                                                              zfs_hide_datasets);
-//                                if (disks.at(mountpoint).stat.empty()) {
-//                                    Logger::debug("Failed to get ZFS stat file for device " + dev);
-//                                }
-//                            }
-//                        }
+                        if (ut::vec::contains(fstab, mountpoint) or ut::vec::contains(fstypes, fstype)) {
+                            found.push_back(mountpoint);
+
+                            //? Save mountpoint, name, fstype, dev path and path to /sys/block stat file
+                            if (not disks.contains(mountpoint)) {
+                                disks[mountpoint] = DiskInfo{fs::canonical(dev, ec),
+                                                             fs::path(mountpoint).filename(), fstype};
+                                if (disks.at(mountpoint).dev.empty()) disks.at(mountpoint).dev = dev;
+                                if (disks.at(mountpoint).name.empty())
+                                    disks.at(mountpoint).name = (mountpoint == "/" ? "root" : mountpoint);
+
+                                string devname = disks.at(mountpoint).dev.filename();
+
+                                int c = 0;
+                                while (devname.size() >= 2) {
+                                    if (fs::exists("/sys/block/" + devname + "/stat", ec) and
+                                        access(string("/sys/block/" + devname + "/stat").c_str(), R_OK) == 0) {
+                                        if (c > 0 and fs::exists("/sys/block/" + devname + '/' +
+                                                                 disks.at(mountpoint).dev.filename().string() +
+                                                                 "/stat", ec))
+                                            disks.at(mountpoint).stat = "/sys/block/" + devname + '/' + disks.at(
+                                                    mountpoint).dev.filename().string() + "/stat";
+                                        else
+                                            disks.at(mountpoint).stat = "/sys/block/" + devname + "/stat";
+                                        break;
+                                        //? Set ZFS stat filepath
+                                    }
+
+                                    devname.resize(devname.size() - 1);
+                                    c++;
+                                }
+                            }
+                        }
                     }
 
                     //? Remove disks no longer mounted or filtered out
@@ -1298,6 +1367,8 @@ namespace mem {
                     disk.used = disk.total - disk.free;
                     disk.used_percent = round((double) disk.used * 100 / disk.total);
                     disk.free_percent = 100 - disk.used_percent;
+
+
                 }
 
                 //? Remove any problematic disks added to the ignore_list
@@ -1331,7 +1402,7 @@ namespace mem {
                 if (not ut::type::is_in(name, "/", "swap")) mem.disks_order.push_back(name);
 
                 //? Get disks IO
-                int64_t sectors_read, sectors_write, io_ticks, io_ticks_temp;
+                uint64_t sectors_read, sectors_write, io_ticks, io_ticks_temp;
                 disk_ios = 0;
                 for (auto &[ignored, disk]: disks) {
                     if (disk.stat.empty() or access(disk.stat.c_str(), R_OK) != 0) continue;
@@ -1346,7 +1417,7 @@ namespace mem {
                         }
                         diskread >> sectors_read;
 
-                        disk.io_read = max((int64_t) 0, (sectors_read - disk.old_io.at(0)) * 512);
+                        disk.io_read = max((uint64_t) 0, (sectors_read - disk.old_io.at(0)) * 512);
                         disk.old_io.at(0) = sectors_read;
 
                         for (int i = 0; i < 3; i++) {
@@ -1356,7 +1427,7 @@ namespace mem {
 
                         diskread >> sectors_write;
 
-                        disk.io_write = max((int64_t) 0, (sectors_write - disk.old_io.at(1)) * 512);
+                        disk.io_write = max((uint64_t) 0, (sectors_write - disk.old_io.at(1)) * 512);
                         disk.old_io.at(1) = sectors_write;
 
                         for (int i = 0; i < 2; i++) {
@@ -1380,12 +1451,32 @@ namespace mem {
                 ut::logger::warning("Error in Mem::collect() : " + string{e.what()});
             }
 
+            //TODO REFACTOR
+            vector<StorageUnit> dsk;
+
+            for(auto& d: mem.disks) {
+                dsk.push_back(StorageUnit {
+                    GenericMemUnit{d.second.total},
+                    GenericMemUnit{d.second.used},
+                    GenericMemUnit{d.second.used},
+                    d.second.used_percent,
+                    d.second.free_percent,
+                    d.second.name,
+                    d.second.fstype,
+                    d.second.io_read,
+                    d.second.io_write,
+                    d.second.io_activity,
+                    d.second.dev
+                });
+            }
+
             return Data {
                 this->total_ram_amount,
-                MemUnit{mem.stats.at("available"), mem.percent.at("available")},
-                MemUnit{mem.stats.at("cached"), mem.percent.at("cached")},
-                MemUnit{mem.stats.at("free"), mem.percent.at("free")},
-                MemUnit{mem.stats.at("used"), mem.percent.at("used")}
+                RamUnit{mem.stats.at("available"), mem.percent.at("available")},
+                RamUnit{mem.stats.at("cached"), mem.percent.at("cached")},
+                RamUnit{mem.stats.at("free"), mem.percent.at("free")},
+                RamUnit{mem.stats.at("used"), mem.percent.at("used")},
+                dsk
             };
         }
     };

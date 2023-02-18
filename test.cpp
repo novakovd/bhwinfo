@@ -120,8 +120,23 @@ int main() {
         );
         printf_with_border(
                 "%s%f GB - %lld %%", "Free RAM amount: ",
+                mem_data.get_free_ram_amount().to_gigabytes(),
                 mem_data.get_free_ram_amount().to_percent()
         );
+
+        for(const mem::StorageUnit& disk: mem_data.get_disks()) {
+            printf_with_new_line("%s: ", disk.get_handle().c_str());
+            printf_with_new_line(" %s %f GB", "Total space:", disk.get_total().to_gigabytes());
+            printf_with_new_line(" %s %f GB", "Used space:", disk.get_used().to_gigabytes());
+            printf_with_new_line(" %s %f GB", "Free space:", disk.get_free().to_gigabytes());
+            printf_with_new_line(" %s %d %%", "Used space percent:", disk.get_used_percent());
+            printf_with_new_line(" %s %d %%", "Free space percent:", disk.get_free_percent());
+            printf_with_new_line(" %s %s", "FS type:", disk.get_fs_type().c_str());
+            printf_with_new_line(" %s %s", "Path:", disk.get_path().c_str());
+            printf_with_new_line(" %s %lld", "IO read:", disk.get_io_read());
+            printf_with_new_line(" %s %lld", "IO write:", disk.get_io_write());
+            printf_with_new_line(" %s %lld", "IO activity:", disk.get_io_activity());
+        }
     }, 1000);
 
     return 0;
