@@ -329,71 +329,135 @@ namespace ut {
 }
 
 namespace cpu {
-    struct CpuFrequency {
-        double value{}; // defaults to 0
-        string units;
+    class CpuFrequency {
+    private:
+        double value{};
+        string units{};
+
+    public:
+        CpuFrequency(double value, string  units) : value(value), units(std::move(units)) {}
+
+        [[nodiscard]] double get_value() const {
+            return value;
+        }
+
+        [[nodiscard]] const string& get_units() const {
+            return units;
+        }
     };
 
-    struct CpuAvgLoad {
+    class CpuAvgLoad {
+    private:
         double one_min{};
         double five_min{};
         double fifteen_min{}; // 10 min for RedHat
+
+    public:
+        CpuAvgLoad(
+            double one_min,
+            double five_min,
+            double fifteen_min
+        ) :
+        one_min(one_min),
+        five_min(five_min),
+        fifteen_min(fifteen_min) {}
+
+        [[nodiscard]] double get_one_min() const {
+            return one_min;
+        }
+
+        [[nodiscard]] double get_five_min() const {
+            return five_min;
+        }
+
+        [[nodiscard]] double get_fifteen_min() const {
+            return fifteen_min;
+        }
     };
 
-    struct CpuUsage {
-        long long total{};
-        long long user{};
-        long long nice{};
-        long long system{};
-        long long idle{};
-        long long iowait{};
-        long long irq{};
-        long long softirq{};
-        long long steal{};
-        long long guest{};
-        long long guest_nice{};
-    };
+    class CpuUsage {
+        long long total_percent{};
+        long long user_percent{};
+        long long nice_percent{};
+        long long system_percent{};
+        long long idle_percent{};
+        long long iowait_percent{};
+        long long irq_percent{};
+        long long softirq_percent{};
+        long long steal_percent{};
+        long long guest_percent{};
+        long long guest_nice_percent{};
 
-    struct Sensor {
-        fs::path path;
-        string label;
-        int64_t temp{}; // defaults to 0
-        int64_t high{}; // defaults to 0
-        int64_t crit{}; // defaults to 0
-    };
+    public:
+        CpuUsage(
+            long long int total_percent,
+            long long int user_percent,
+            long long int nice_percent,
+            long long int system_percent,
+            long long int idle_percent,
+            long long int iowait_percent,
+            long long int irq_percent,
+            long long int softirq_percent,
+            long long int steal_percent,
+            long long int guest_percent,
+            long long int guest_nice_percent
+        ) :
+        total_percent(total_percent),
+        user_percent(user_percent),
+        nice_percent(nice_percent),
+        system_percent(system_percent),
+        idle_percent(idle_percent),
+        iowait_percent(iowait_percent),
+        irq_percent(irq_percent),
+        softirq_percent(softirq_percent),
+        steal_percent(steal_percent),
+        guest_percent(guest_percent),
+        guest_nice_percent(
+        guest_nice_percent) {}
 
-    struct CpuInfo {
-        std::unordered_map<string, long long> cpu_percent = {
-                {"total", 0},
-                {"user", 0},
-                {"nice", 0},
-                {"system", 0},
-                {"idle", 0},
-                {"iowait", 0},
-                {"irq", 0},
-                {"softirq", 0},
-                {"steal", 0},
-                {"guest", 0},
-                {"guest_nice", 0}
-        };
-        vector<long long> core_percent;
-        long long critical_temperature{};
-        array<float, 3> load_avg{};
-    };
+        [[nodiscard]] long long int get_total_percent() const {
+            return total_percent;
+        }
 
-    std::unordered_map<string, long long> CpuOld = {
-            {"totals", 0},
-            {"idles", 0},
-            {"user", 0},
-            {"nice", 0},
-            {"system", 0},
-            {"idle", 0},
-            {"iowait", 0},
-            {"irq", 0},
-            {"softirq", 0},
-            {"steal", 0},
-            {"guest", 0},
-            {"guest_nice", 0}
+        [[nodiscard]] long long int get_user_percent() const {
+            return user_percent;
+        }
+
+        [[nodiscard]] long long int get_nice_percent() const {
+            return nice_percent;
+        }
+
+        [[nodiscard]] long long int get_system_percent() const {
+            return system_percent;
+        }
+
+        [[nodiscard]] long long int get_idle_percent() const {
+            return idle_percent;
+        }
+
+        [[nodiscard]] long long int get_iowait_percent() const {
+            return iowait_percent;
+        }
+
+        [[nodiscard]] long long int get_irq_percent() const {
+            return irq_percent;
+        }
+
+        [[nodiscard]] long long int get_softirq_percent() const {
+            return softirq_percent;
+        }
+
+        [[nodiscard]] long long int get_steal_percent() const {
+            return steal_percent;
+        }
+
+        [[nodiscard]] long long int get_guest_percent() const {
+            return guest_percent;
+        }
+
+        [[nodiscard]] long long int get_guest_nice_percent() const {
+            return guest_nice_percent;
+        }
     };
 
     class StaticValuesAware {
@@ -405,11 +469,11 @@ namespace cpu {
 
     class Data : StaticValuesAware {
     private:
-        CpuUsage cpu_usage;
+        CpuUsage cpu_usage{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         int64_t cpu_temp;
-        CpuAvgLoad cpu_load_avg;
+        CpuAvgLoad cpu_load_avg{0, 0, 0};
         vector<long long> core_load;
-        CpuFrequency cpu_frequency;
+        CpuFrequency cpu_frequency{0, ""};
 
     public:
         Data(
@@ -488,6 +552,45 @@ namespace cpu {
             }
         }
     private:
+        struct Sensor {
+            fs::path path;
+            string label;
+            int64_t temp{}; // defaults to 0
+            int64_t high{}; // defaults to 0
+            int64_t crit{}; // defaults to 0
+        };
+        struct CpuInfo {
+            std::unordered_map<string, long long> cpu_percent = {
+                    {"total", 0},
+                    {"user", 0},
+                    {"nice", 0},
+                    {"system", 0},
+                    {"idle", 0},
+                    {"iowait", 0},
+                    {"irq", 0},
+                    {"softirq", 0},
+                    {"steal", 0},
+                    {"guest", 0},
+                    {"guest_nice", 0}
+            };
+            vector<long long> core_percent;
+            long long critical_temperature{};
+            array<float, 3> load_avg{};
+        };
+        std::unordered_map<string, long long> CpuOld = {
+                {"totals", 0},
+                {"idles", 0},
+                {"user", 0},
+                {"nice", 0},
+                {"system", 0},
+                {"idle", 0},
+                {"iowait", 0},
+                {"irq", 0},
+                {"softirq", 0},
+                {"steal", 0},
+                {"guest", 0},
+                {"guest_nice", 0}
+        };
         string cpu_sensor;
         vector<string> core_sensors;
         vector<long long> core_old_totals;
@@ -677,10 +780,11 @@ namespace cpu {
 
         CpuFrequency get_cpu_frequency() {
             static int failed{}; // defaults to 0
-            CpuFrequency result{};
+            double value{};
+            string units{};
 
             if (failed > 4)
-                return result;
+                return CpuFrequency{value, units};
 
             try {
                 double hz{}; // defaults to 0.0
@@ -716,27 +820,27 @@ namespace cpu {
                     throw std::runtime_error("Failed to read /sys/devices/system/cpu/cpufreq/policy and /proc/cpuinfo.");
 
                 if (hz >= 1000) {
-                    if (hz >= 10000) result.value = round(hz / 1000);
-                    else result.value = round(hz / 100) / 10.0;
+                    if (hz >= 10000) value = round(hz / 1000);
+                    else value = round(hz / 100) / 10.0;
 
-                    result.units = "GHz";
+                    units = "GHz";
                 }
                 else if (hz > 0) {
-                    result.value = round(hz);
-                    result.units = "MHz";
+                    value = round(hz);
+                    units = "MHz";
                 }
             }
             catch (const std::exception& e) {
                 if (++failed < 5)
-                    return result;
+                    return CpuFrequency{value, units};
                 else {
                     ut::logger::warning("get_cpu_frequency() : " + string{e.what()});
 
-                    return result;
+                    return CpuFrequency{value, units};
                 }
             }
 
-            return result;
+            return CpuFrequency{value, units};
         }
 
         string get_cpu_mame() {
@@ -1082,7 +1186,7 @@ namespace mem {
 
     public:
         Data(
-            const GenericMemUnit total_ram_amount,
+            const GenericMemUnit& total_ram_amount,
             const RamUnit& available_ram_amount,
             const RamUnit& cached_ram_amount,
             const RamUnit& free_ram_amount,

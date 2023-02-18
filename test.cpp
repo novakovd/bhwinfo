@@ -68,29 +68,28 @@ int main() {
         auto core_load = cpu_data.get_core_load();
         auto cpu_usage = cpu_data.get_cpu_usage();
 
-        printf_with_border("%s %f %s", "CPU frequency:", freq.value, freq.units.c_str());
+        printf_with_border("%s %f %s", "CPU frequency:", freq.get_value(), freq.get_units().c_str());
 
         printf_with_border("%s %s", "CPU name:", cpu_data.get_cpu_mame().c_str());
 
-        printf_with_border("%s %f %f %f", "CPU average load:", load_avg.one_min, load_avg.five_min,
-                           load_avg.fifteen_min);
+        printf_with_border("%s %f %f %f", "CPU average load:", load_avg.get_one_min(), load_avg.get_five_min(), load_avg.get_fifteen_min());
 
         printf_with_new_line("%s %ld%s", "CPU temp:", cpu_data.get_cpu_temp(), "°C");
         printf_with_border("%s %ld%s", "CPU critical temp:", cpu_data.get_cpu_critical_temperature(), "°C");
 
         printf_with_border("%s %d", "CPU core count:", cpu_data.get_core_count());
 
-        printf_with_new_line("%s %lld%s", "CPU total:", cpu_usage.total, "%");
-        printf_with_new_line("%s %lld%s", "CPU user:", cpu_usage.user, "%");
-        printf_with_new_line("%s %lld%s", "CPU nice:", cpu_usage.nice, "%");
-        printf_with_new_line("%s %lld%s", "CPU system:", cpu_usage.system, "%");
-        printf_with_new_line("%s %lld%s", "CPU idle:", cpu_usage.idle, "%");
-        printf_with_new_line("%s %lld%s", "CPU iowait:", cpu_usage.iowait, "%");
-        printf_with_new_line("%s %lld%s", "CPU irq:", cpu_usage.irq, "%");
-        printf_with_new_line("%s %lld%s", "CPU softirq:", cpu_usage.softirq, "%");
-        printf_with_new_line("%s %lld%s", "CPU steal:", cpu_usage.steal, "%");
-        printf_with_new_line("%s %lld%s", "CPU guest:", cpu_usage.guest, "%");
-        printf_with_border("%s %lld%s", "CPU guest_nice:", cpu_usage.guest_nice, "%");
+        printf_with_new_line("%s %lld%s", "CPU total:", cpu_usage.get_total_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU user:", cpu_usage.get_user_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU nice:", cpu_usage.get_nice_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU system:", cpu_usage.get_system_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU idle:", cpu_usage.get_idle_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU iowait:", cpu_usage.get_iowait_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU irq:", cpu_usage.get_irq_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU softirq:", cpu_usage.get_softirq_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU steal:", cpu_usage.get_steal_percent(), "%");
+        printf_with_new_line("%s %lld%s", "CPU guest:", cpu_usage.get_guest_percent(), "%");
+        printf_with_border("%s %lld%s", "CPU guest_nice:", cpu_usage.get_guest_nice_percent(), "%");
 
         for (int core_number = 0; core_number < cpu_data.get_core_count(); core_number++) {
             printf("%s%d: %lld", "Core", core_number, core_load.at(core_number));
