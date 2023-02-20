@@ -1561,7 +1561,7 @@ namespace mem {
                 dsk.push_back(StorageUnit {
                     GenericMemUnit{d.second.total},
                     GenericMemUnit{d.second.used},
-                    GenericMemUnit{d.second.used},
+                    GenericMemUnit{d.second.free},
                     d.second.used_percent,
                     d.second.free_percent,
                     d.second.name,
