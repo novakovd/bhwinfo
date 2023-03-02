@@ -7,7 +7,7 @@ set(PROJECT_NAME HwInfo)
 set(CMAKE_CXX_FLAGS -pthread)
 set(CMAKE_CXX_STANDARD 20)
 set(SD ${CMAKE_SOURCE_DIR}/src/)
-set(ID ${CMAKE_SOURCE_DIR}/inc/)
+set(ID ${CMAKE_SOURCE_DIR}/include/)
 
 project (${PROJECT_NAME})
 
@@ -35,12 +35,16 @@ endif()
 
 # ------------------------------------------------------------------------------
 
+add_library(${PROJECT_NAME}_LIB SHARED ${ID}/cpu.hpp ${ID}/mem.hpp ${SD}/cpu.cpp ${SD}/mem.cpp)
+
 add_executable(${PROJECT_NAME} test.cpp)
 
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
+target_link_libraries(${PROJECT_NAME} PUBLIC ${PROJECT_NAME}_LIB)
+
 target_link_libraries(${PROJECT_NAME}
         PRIVATE ftxui::screen
         PRIVATE ftxui::dom
-        PRIVATE ftxui::component # Not needed for this example.
+        PRIVATE ftxui::component
 )

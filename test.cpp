@@ -17,7 +17,7 @@
 #include <iostream>
 #include "thread"
 #include <chrono>
-#include "src/libhwinfo.hpp"
+#include "libhwinfo.hpp"
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/screen.hpp>
 
